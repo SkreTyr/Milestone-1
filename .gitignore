@@ -1,0 +1,20 @@
+# Build output
+target/
+
+# Local SQLite database (created at runtime)
+*.db
+*.db-journal
+*.sqlite
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
