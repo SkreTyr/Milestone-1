@@ -6,7 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
-import java.net.URL;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
@@ -25,14 +25,17 @@ public final class HttpJson {
 
     public static String get(String url, Map<String, String> headers) throws IOException {
         HttpURLConnection connection = open(url, headers);
-        int status = connection.getResponseCode();
-        InputStream stream = status >= 200 && status < 300 ? connection.getInputStream() : connection.getErrorStream();
-        String body = readText(stream);
-        connection.disconnect();
-        if (status < 200 || status >= 300) {
-            throw new IOException("HTTP " + status + " from " + url + (body.isBlank() ? "" : ": " + body));
+        try {
+            int status = connection.getResponseCode();
+            InputStream stream = status >= 200 && status < 300 ? connection.getInputStream() : connection.getErrorStream();
+            String body = readText(stream);
+            if (status < 200 || status >= 300) {
+                throw new IOException("HTTP " + status + " from " + url + (body.isBlank() ? "" : ": " + body));
+            }
+            return body;
+        } finally {
+            connection.disconnect();
         }
-        return body;
     }
 
     public static byte[] getBytes(String url) throws IOException {
@@ -56,7 +59,7 @@ public final class HttpJson {
     }
 
     private static HttpURLConnection open(String url, Map<String, String> headers) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
         connection.setRequestMethod("GET");
         connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
         connection.setReadTimeout(READ_TIMEOUT_MS);
