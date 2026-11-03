@@ -54,7 +54,7 @@ powershell -ExecutionPolicy Bypass -File scripts\generate_csv.ps1 -Rows 6000
 | 1 | **OOD**: abstract class/interface + 2+ concrete implementations, SRP | Abstract class `Animal` with concrete `Dog`, `Cat`, `OtherAnimal` (each with its own adoption-fee and care-schedule rules). Second interface `PetImageService` with `DogCeoImageService` + `CatApiImageService`. SRP is enforced by splitting DAO / service / GUI layers. |
 | 2 | **Stack, Queue, Map + non-trivial recursion** | Queue: `WaitlistService` (per-animal `ArrayDeque` FIFO waitlist). Stack: `StatusHistoryService` (`ArrayDeque` push/pop = undo). Maps: `AnalyticsService` frequency maps, `groupByClassification`, `WaitlistService` queues keyed by animal. Recursion: `ClassificationNode.findByPath / searchByName / depth / countNodes / path`, `AnalyticsService.countRecursive` (roll-up), `DogCeoImageService.collectBreeds` (JSON tree). |
 | 3 | **Automated testing**: 6+ JUnit 5 tests, standard + edge cases | 9 test classes / **62 tests** in `src/test/java` (fee boundary values, empty queue, empty undo stack, negative shelter stay, malformed CSV rows, FK violations, duplicate emails, empty JSON responses, ...). |
-| 4 | **ER model (3+ entities) + SQLite via JDBC / PreparedStatement** | 5 related tables: `classification`, `animal`, `adopter`, `adoption_record`, `waitlist_entry`. Every query uses `PreparedStatement` (see `com.petshelter.db.*`). |
+| 4 | **ER model (3+ entities) + SQLite via JDBC / PreparedStatement** | 5 related tables: `classification`, `animal`, `adopter`, `adoption_record`, `waitlist_entry`. Every query uses `PreparedStatement` (see `pawtrack.db.*`). |
 | 5 | **REST API consumption + JSON parsing used in logic** | Live call to the Dog CEO API (`/breeds/image/random`, `/breed/{breed}/images/random`, `/breeds/list/all`) and TheCatAPI (`/images/search`). Parsed with `org.json` and used to resolve breeds and display images. |
 | 6 | **Event-driven GUI with 3+ controls + handlers** | Swing GUI: 6 buttons, a classification filter combo box, a metric combo box, table selection, file chooser - all wired to `ActionListener` / `ListSelectionListener` handlers in `MainFrame`. |
 | 7 | **Concurrency** | CSV import runs on a `SwingWorker` (`ImportWorker`) with live progress; API/image downloads run on a second `SwingWorker` (`ImageWorker`). The Event Dispatch Thread never blocks. |
@@ -170,11 +170,11 @@ Single Responsibility Principle, package by responsibility:
 
 | Package | Responsibility |
 |---|---|
-| `com.petshelter.model` | Domain entities only (no I/O) |
-| `com.petshelter.db` | JDBC persistence, one DAO per entity |
-| `com.petshelter.service` | Business rules: waitlist, undo, import, analytics, taxonomy |
-| `com.petshelter.api` | REST clients and JSON parsing |
-| `com.petshelter.gui` | Swing presentation and event handlers |
+| `pawtrack.model` | Domain entities only (no I/O) |
+| `pawtrack.db` | JDBC persistence, one DAO per entity |
+| `pawtrack.service` | Business rules: waitlist, undo, import, analytics, taxonomy |
+| `pawtrack.api` | REST clients and JSON parsing |
+| `pawtrack.gui` | Swing presentation and event handlers |
 
 Interfaces implemented:
 - `PetImageService` -> `DogCeoImageService`, `CatApiImageService`

@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.petshelter</groupId>
+    <groupId>pawtrack</groupId>
     <artifactId>pet-shelter-tracker</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
@@ -69,7 +69,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>${exec.plugin.version}</version>
                 <configuration>
-                    <mainClass>com.petshelter.Main</mainClass>
+                    <mainClass>pawtrack.Main</mainClass>
                 </configuration>
             </plugin>
 
@@ -88,7 +88,7 @@
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.petshelter.Main</mainClass>
+                                    <mainClass>pawtrack.Main</mainClass>
                                 </transformer>
                             </transformers>
                         </configuration>
