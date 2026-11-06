@@ -41,6 +41,12 @@ import javax.swing.JTextField;
 import javax.swing.SwingWorker;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
+import java.awt.Cursor;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
@@ -63,9 +69,14 @@ import java.util.Set;
  * controls and runs long-running work (CSV import, API/image downloads) on
  * background threads.
  */
+/**
+ * Main application window (GUI). Connects to Main (entry point), Database, DAOs,
+ * services, and workers. Contains toolbar, animal table, analytics, activity log.
+ */
 public final class MainFrame extends JFrame {
 
     private static final String ALL_CLASSIFICATIONS = "<All animals>";
+    // Private helper for MainFrame GUI logic
     private static final Dimension IMAGE_SIZE = new Dimension(360, 360);
 
     private final Database database;
@@ -76,18 +87,34 @@ public final class MainFrame extends JFrame {
     private final WaitlistDao waitlistDao;
 
     private ClassificationService classification;
+    // Private helper for MainFrame GUI logic
     private final WaitlistService waitlist = new WaitlistService();
+    // Private helper for MainFrame GUI logic
     private final StatusHistoryService history = new StatusHistoryService();
+    // Private helper for MainFrame GUI logic
     private final AnalyticsService analytics = new AnalyticsService();
 
+    // Private helper for MainFrame GUI logic
     private final AnimalTableModel tableModel = new AnimalTableModel(waitlist);
+    // Private helper for MainFrame GUI logic
     private final JTable animalTable = new JTable(tableModel);
+    // Private helper for MainFrame GUI logic
     private final JTextArea logArea = new JTextArea();
+    private JTabbedPane tabs;
+    private JPanel toolbar;
+    private JPanel imagePanel;
+    private boolean darkMode = false;
+    // Private helper for MainFrame GUI logic
     private final JProgressBar progressBar = new JProgressBar(0, 100);
+    // Private helper for MainFrame GUI logic
     private final JLabel statusLabel = new JLabel("Ready");
+    // Private helper for MainFrame GUI logic
     private final JComboBox<String> classificationFilter = new JComboBox<>();
+    // Private helper for MainFrame GUI logic
     private final JLabel imageLabel = new JLabel();
+    // Private helper for MainFrame GUI logic
     private final JLabel imageInfoLabel = new JLabel(" ");
+    // Private helper for MainFrame GUI logic
     private final AnalyticsPanel analyticsPanel = new AnalyticsPanel();
 
     public MainFrame() throws SQLException {
@@ -116,6 +143,7 @@ public final class MainFrame extends JFrame {
 
     // ------------------------------------------------------------------ UI
 
+    // Private helper for MainFrame GUI logic
     private void buildUi() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout(6, 6));
@@ -123,10 +151,13 @@ public final class MainFrame extends JFrame {
 
         add(buildToolbar(), BorderLayout.NORTH);
 
-        JTabbedPane tabs = new JTabbedPane();
+        tabs = new JTabbedPane();
         tabs.addTab("Animals", buildAnimalTab());
         tabs.addTab("Shelter Analytics", analyticsPanel);
-        tabs.addTab("Activity Log", new JScrollPane(logArea));
+        analyticsPanel.setBorder(BorderFactory.createLineBorder(new Color(0x2B5B8A), 1));
+        JScrollPane activityScroll = new JScrollPane(logArea);
+        activityScroll.setBorder(BorderFactory.createLineBorder(new Color(0x2B5B8A), 1));
+        tabs.addTab("Activity Log", activityScroll);
         add(tabs, BorderLayout.CENTER);
 
         add(buildImagePanel(), BorderLayout.EAST);
@@ -163,11 +194,13 @@ public final class MainFrame extends JFrame {
         setLocationRelativeTo(null);
     }
 
+    // Private helper for MainFrame GUI logic
     private JPanel buildToolbar() {
-        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
+        toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
         toolbar.setBorder(BorderFactory.createTitledBorder("Controls"));
 
         toolbar.add(button("List / Refresh Animals", this::onRefreshAnimals));
+        toolbar.add(button("Toggle Theme", this::onToggleTheme));
         toolbar.add(button("Filter by Classification", this::onFilterByClassification));
         toolbar.add(button("Import Intake History (CSV)", this::onImportCsv));
         toolbar.add(button("Record Interest", this::onRecordInterest));
@@ -190,21 +223,24 @@ public final class MainFrame extends JFrame {
                 JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         toolbarScroll.setBorder(null);
         JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setBorder(BorderFactory.createEmptyBorder(0, 0, 8, 0));
         wrapper.add(toolbarScroll, BorderLayout.CENTER);
         return wrapper;
     }
 
+    // Private helper for MainFrame GUI logic
     private JPanel buildAnimalTab() {
         JPanel panel = new JPanel(new BorderLayout());
-        panel.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
+        panel.setBorder(BorderFactory.createLineBorder(new Color(0x2B5B8A), 1));
         panel.add(new JScrollPane(animalTable), BorderLayout.CENTER);
         return panel;
     }
 
+    // Private helper for MainFrame GUI logic
     private JPanel buildImagePanel() {
-        JPanel panel = new JPanel();
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setBorder(BorderFactory.createTitledBorder("Sample Pet Image (live API)"));
+        imagePanel = new JPanel();
+        imagePanel.setLayout(new BoxLayout(imagePanel, BoxLayout.Y_AXIS));
+        imagePanel.setBorder(BorderFactory.createTitledBorder("Sample Pet Image (live API)"));
         imageLabel.setPreferredSize(IMAGE_SIZE);
         imageLabel.setMinimumSize(new Dimension(200, 200));
         imageLabel.setMaximumSize(new Dimension(400, 400));
@@ -212,27 +248,107 @@ public final class MainFrame extends JFrame {
         imageLabel.setAlignmentX(CENTER_ALIGNMENT);
         imageLabel.setBorder(BorderFactory.createLineBorder(new java.awt.Color(0xCCCCCC)));
         imageInfoLabel.setAlignmentX(CENTER_ALIGNMENT);
-        panel.add(Box.createVerticalStrut(6));
-        panel.add(imageLabel);
-        panel.add(Box.createVerticalStrut(6));
-        panel.add(imageInfoLabel);
-        return panel;
+        imagePanel.add(Box.createVerticalStrut(6));
+        imagePanel.add(imageLabel);
+        imagePanel.add(Box.createVerticalStrut(6));
+        imagePanel.add(imageInfoLabel);
+        return imagePanel;
     }
 
+    // Private helper for MainFrame GUI logic
     private JButton button(String text, Runnable action) {
         JButton button = new JButton(text);
+        button.setFocusPainted(false);
+        button.setBackground(new Color(0x2B5B8A));
+        button.setForeground(Color.BLACK);
+        button.setBorder(BorderFactory.createEmptyBorder(6, 14, 6, 14));
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        Color normal = new Color(0x2B5B8A);
+        Color hover = new Color(0x1F4366);
+        Color pressed = new Color(0x142D4A);
+        button.setBackground(normal);
+        button.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) { button.setBackground(hover); }
+            public void mouseExited(MouseEvent e) { button.setBackground(normal); }
+            public void mousePressed(MouseEvent e) { button.setBackground(pressed); }
+            public void mouseReleased(MouseEvent e) { button.setBackground(button.contains(e.getPoint()) ? hover : normal); }
+        });
         button.addActionListener(event -> action.run());
         return button;
     }
 
     // ------------------------------------------------------------- actions
 
+    // Private helper for MainFrame GUI logic
     private void onRefreshAnimals() {
         classificationFilter.setSelectedIndex(0);
         refreshAnimals();
         statusLabel.setText("Loaded " + tableModel.getRowCount() + " animal(s)");
     }
 
+    // Private helper for MainFrame GUI logic
+    private void onToggleTheme() {
+        darkMode = !darkMode;
+        applyTheme();
+    }
+
+    // Private helper for MainFrame GUI logic
+    private void applyTheme() {
+        Color bg = darkMode ? new Color(0x4A4A4A) : Color.WHITE;
+        Color fg = darkMode ? Color.WHITE : Color.BLACK;
+        getContentPane().setBackground(bg);
+        recolor(getContentPane(), bg, fg);
+        logArea.setBackground(darkMode ? new Color(0x2D2D2D) : Color.WHITE);
+        logArea.setForeground(fg);
+        animalTable.setBackground(bg);
+        animalTable.setForeground(fg);
+        statusLabel.setForeground(fg);
+        imageInfoLabel.setForeground(fg);
+        animalTable.getTableHeader().setForeground(Color.BLACK);
+        classificationFilter.setForeground(Color.BLACK);
+        tabs.setForeground(Color.BLACK);
+        analyticsPanel.setForeground(fg);
+        setMetricLabelBlack(analyticsPanel);
+        setCombosBlack(analyticsPanel);
+        if (toolbar.getBorder() instanceof javax.swing.border.TitledBorder) {
+            ((javax.swing.border.TitledBorder) toolbar.getBorder()).setTitleColor(darkMode ? Color.WHITE : Color.BLACK);
+        }
+        if (imagePanel != null && imagePanel.getBorder() instanceof javax.swing.border.TitledBorder) {
+            ((javax.swing.border.TitledBorder) imagePanel.getBorder()).setTitleColor(darkMode ? Color.WHITE : Color.BLACK);
+        }
+        revalidate();
+        repaint();
+    }
+
+    // Private helper for MainFrame GUI logic
+private void setMetricLabelBlack(Container c) {
+        for (Component ch : c.getComponents()) {
+            if (ch instanceof JLabel && "Metric:".equals(((JLabel) ch).getText())) {
+                ch.setForeground(Color.BLACK);
+            } else if (ch instanceof Container) {
+                setMetricLabelBlack((Container) ch);
+            }
+        }
+    }
+private void setCombosBlack(Container c) {
+        for (Component ch : c.getComponents()) {
+            if (ch instanceof JComboBox) {
+                ch.setForeground(Color.BLACK);
+            } else if (ch instanceof Container) {
+                setCombosBlack((Container) ch);
+            }
+        }
+    }
+    private void recolor(Component c, Color bg, Color fg) {
+        if (c instanceof JButton) return;
+        c.setBackground(bg);
+        c.setForeground(fg);
+        if (c instanceof Container) {
+            for (Component child : ((Container) c).getComponents()) recolor(child, bg, fg);
+        }
+    }
+
+    // Private helper for MainFrame GUI logic
     private void onFilterByClassification() {
         Object selected = classificationFilter.getSelectedItem();
         if (selected == null || ALL_CLASSIFICATIONS.equals(selected)) {
@@ -265,6 +381,7 @@ public final class MainFrame extends JFrame {
         }
     }
 
+    // Private helper for MainFrame GUI logic
     private void onImportCsv() {
         JFileChooser chooser = new JFileChooser(new File("data"));
         chooser.setDialogTitle("Select historical intake/adoption CSV");
@@ -305,6 +422,7 @@ public final class MainFrame extends JFrame {
         worker.execute();
     }
 
+    // Private helper for MainFrame GUI logic
     private void onRecordInterest() {
         Animal animal = selectedAnimal();
         if (animal == null) {
@@ -339,6 +457,7 @@ public final class MainFrame extends JFrame {
         }
     }
 
+    // Private helper for MainFrame GUI logic
     private void onMarkAdopted() {
         Animal animal = selectedAnimal();
         if (animal == null) {
@@ -380,6 +499,7 @@ public final class MainFrame extends JFrame {
         }
     }
 
+    // Private helper for MainFrame GUI logic
     private void onUndo() {
         Optional<StatusChange> undone = history.undo();
         if (undone.isEmpty()) {
@@ -397,6 +517,7 @@ public final class MainFrame extends JFrame {
         }
     }
 
+    // Private helper for MainFrame GUI logic
     private void onFetchImage() {
         Animal animal = selectedAnimal();
         if (animal == null) {
@@ -437,6 +558,7 @@ public final class MainFrame extends JFrame {
 
     // ------------------------------------------------------------- helpers
 
+    // Private helper for MainFrame GUI logic
     private Animal selectedAnimal() {
         int viewRow = animalTable.getSelectedRow();
         if (viewRow < 0) {
@@ -445,6 +567,7 @@ public final class MainFrame extends JFrame {
         return tableModel.getAnimalAt(animalTable.convertRowIndexToModel(viewRow));
     }
 
+    // Private helper for MainFrame GUI logic
     private Adopter promptForAdopter(String title) {
         JTextField nameField = new JTextField(18);
         JTextField emailField = new JTextField(18);
@@ -470,6 +593,7 @@ public final class MainFrame extends JFrame {
         }
     }
 
+    // Private helper for MainFrame GUI logic
     private void refreshAnimals() {
         try {
             tableModel.setAnimals(animalDao.findAll());
@@ -478,6 +602,7 @@ public final class MainFrame extends JFrame {
         }
     }
 
+    // Private helper for MainFrame GUI logic
     private void refreshAnalytics() {
         try {
             List<Animal> animals = animalDao.findAll();
@@ -491,6 +616,7 @@ public final class MainFrame extends JFrame {
         }
     }
 
+    // Private helper for MainFrame GUI logic
     private void populateClassificationFilter() {
         classificationFilter.addItem(ALL_CLASSIFICATIONS);
         for (String path : classification.allPaths()) {
@@ -498,6 +624,7 @@ public final class MainFrame extends JFrame {
         }
     }
 
+    // Private helper for MainFrame GUI logic
     private void loadWaitlists() {
         try {
             for (WaitlistDao.Entry entry : waitlistDao.loadAll()) {
@@ -510,6 +637,7 @@ public final class MainFrame extends JFrame {
         }
     }
 
+    // Private helper for MainFrame GUI logic
     private void updateSelectedAnimalInfo() {
         Animal animal = selectedAnimal();
         if (animal == null) {
@@ -520,19 +648,23 @@ public final class MainFrame extends JFrame {
                 animal, animal.adoptionFee(), animal.careSchedule()));
     }
 
+    // Private helper for MainFrame GUI logic
     private void log(String message) {
         logArea.append(message + System.lineSeparator());
         logArea.setCaretPosition(logArea.getDocument().getLength());
     }
 
+    // Private helper for MainFrame GUI logic
     private void info(String message) {
         JOptionPane.showMessageDialog(this, message, "Information", JOptionPane.INFORMATION_MESSAGE);
     }
 
+    // Private helper for MainFrame GUI logic
     private void warn(String message) {
         JOptionPane.showMessageDialog(this, message, "Warning", JOptionPane.WARNING_MESSAGE);
     }
 
+    // Private helper for MainFrame GUI logic
     private void error(String title, Exception failure) {
         log(title + ": " + failure.getMessage());
         JOptionPane.showMessageDialog(this, title + "\n" + failure.getMessage(), "Error",

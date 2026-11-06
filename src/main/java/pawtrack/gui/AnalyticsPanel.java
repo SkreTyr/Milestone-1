@@ -81,6 +81,8 @@ public final class AnalyticsPanel extends JPanel {
         summary.setCaretPosition(0);
 
         updateChart();
+        revalidate();
+        repaint();
     }
 
     private void updateChart() {
