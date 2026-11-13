@@ -72,12 +72,20 @@ public final class MainFrame extends JFrame {
 
     private static final String ALL_CLASSIFICATIONS = "<All animals>";
     // Private helper for MainFrame GUI logic
-    private static final Dimension IMAGE_SIZE = new Dimension(240, 240);
-    private static final Color PANEL_BLUE = new Color(0xAFD3F2);
-    private static final Color TABLE_BLUE = new Color(0xD6EAF8);
-    private static final Color TOOLBAR_BLUE = new Color(0x9FC5E8);
-    private static final Color TAB_COLOR = new Color(0x1F4366);
-    private static final Color TAB_SELECTED_COLOR = new Color(0x2B5B8A);
+    private static final Dimension IMAGE_SIZE = new Dimension(260, 250);
+    // PawTrack's existing blue identity, refined with softer surfaces and navy accents.
+    private static final Color PANEL_BLUE = new Color(0xB7D7F0);
+    private static final Color TABLE_BLUE = new Color(0xF7FBFF);
+    private static final Color TOOLBAR_BLUE = new Color(0xA5C9E7);
+    private static final Color PRIMARY_BLUE = new Color(0x2E608C);
+    private static final Color HOVER_BLUE = new Color(0x3E79A8);
+    private static final Color NAVY_BLUE = new Color(0x1D3F5C);
+    private static final Color BORDER_BLUE = new Color(0x8FB8DA);
+    private static final Color ALT_ROW_BLUE = new Color(0xE8F2FA);
+    private static final Color TAB_COLOR = new Color(0x315F86);
+    private static final Color TAB_SELECTED_COLOR = PRIMARY_BLUE;
+    private static final java.awt.Font BODY_FONT = new java.awt.Font("Segoe UI", java.awt.Font.PLAIN, 13);
+    private static final java.awt.Font LABEL_FONT = new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 13);
     private static final java.util.logging.Logger LOGGER =
             java.util.logging.Logger.getLogger(MainFrame.class.getName());
 
@@ -178,13 +186,18 @@ public final class MainFrame extends JFrame {
     // Private helper for MainFrame GUI logic
     private void buildUi() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLayout(new BorderLayout(6, 6));
-        setMinimumSize(new Dimension(900, 600));
+        setLayout(new BorderLayout(8, 8));
+        setMinimumSize(new Dimension(1100, 680));
         java.awt.Image icon = Icons.appIcon();
         if (icon != null) {
             setIconImage(icon);
         }
         getContentPane().setBackground(PANEL_BLUE);
+        javax.swing.UIManager.put("Label.font", BODY_FONT);
+        javax.swing.UIManager.put("Button.font", BODY_FONT);
+        javax.swing.UIManager.put("Table.font", BODY_FONT);
+        javax.swing.UIManager.put("TableHeader.font", LABEL_FONT);
+        javax.swing.UIManager.put("ComboBox.font", BODY_FONT);
 
         // Keep a small gap between the panel content and its scrollbar.
         JPanel toolbarHolder = new JPanel(new BorderLayout());
@@ -238,26 +251,39 @@ public final class MainFrame extends JFrame {
         analyticsPanel.setRefreshAction(this::refreshAnalytics);
 
         logArea.setEditable(false);
+        logArea.setFont(BODY_FONT);
         animalTable.setFillsViewportHeight(true);
-        javax.swing.table.DefaultTableCellRenderer centerRenderer = new javax.swing.table.DefaultTableCellRenderer();
-        centerRenderer.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
-        animalTable.setDefaultRenderer(Object.class, centerRenderer);
-        animalTable.setDefaultRenderer(java.lang.Number.class, centerRenderer);
         animalTable.setBackground(TABLE_BLUE);
-        animalTable.setGridColor(new Color(0x8FB8DA));
+        animalTable.setForeground(NAVY_BLUE);
+        animalTable.setFont(BODY_FONT);
+        animalTable.setRowHeight(32);
+        animalTable.setGridColor(new Color(0xD4E4F1));
+        animalTable.setShowVerticalLines(false);
+        animalTable.setShowHorizontalLines(true);
+        animalTable.setIntercellSpacing(new Dimension(0, 1));
+        animalTable.setSelectionBackground(new Color(0xC5DFF3));
+        animalTable.setSelectionForeground(NAVY_BLUE);
+        animalTable.setFillsViewportHeight(true);
         animalTable.getTableHeader().setOpaque(true);
-        animalTable.getTableHeader().setBackground(new Color(0x2B5B8A));
+        animalTable.getTableHeader().setPreferredSize(new Dimension(0, 38));
+        animalTable.getTableHeader().setFont(LABEL_FONT);
+        animalTable.getTableHeader().setBackground(PRIMARY_BLUE);
         animalTable.getTableHeader().setForeground(Color.WHITE);
+        animalTable.setDefaultRenderer(Object.class, new BlueTableRenderer());
+        animalTable.setDefaultRenderer(Number.class, new BlueTableRenderer());
         animalTable.getTableHeader().setDefaultRenderer(new javax.swing.table.DefaultTableCellRenderer() {
             @Override
             public java.awt.Component getTableCellRendererComponent(javax.swing.JTable table, Object value,
                     boolean isSelected, boolean hasFocus, int row, int column) {
-                javax.swing.JLabel c = (javax.swing.JLabel) super.getTableCellRendererComponent(
+                javax.swing.JLabel cell = (javax.swing.JLabel) super.getTableCellRendererComponent(
                         table, value, isSelected, hasFocus, row, column);
-                c.setOpaque(true);
-                c.setBackground(new Color(0x2B5B8A));
-                c.setForeground(Color.WHITE);
-                return c;
+                cell.setOpaque(true);
+                cell.setFont(LABEL_FONT);
+                cell.setBackground(PRIMARY_BLUE);
+                cell.setForeground(Color.WHITE);
+                cell.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+                cell.setBorder(BorderFactory.createEmptyBorder(8, 7, 8, 7));
+                return cell;
             }
         });
         animalTable.setAutoCreateRowSorter(true);
@@ -287,8 +313,9 @@ public final class MainFrame extends JFrame {
     // Private helper for MainFrame GUI logic
     private void addTabButton(String title, java.awt.Component content) {
         RoundedUi.RoundedButton btn = new RoundedUi.RoundedButton(title, 18, TAB_COLOR);
-        btn.setPreferredSize(new Dimension(170, 40));
-        btn.setMaximumSize(new Dimension(170, 40));
+        btn.setPreferredSize(new Dimension(178, 44));
+        btn.setMaximumSize(new Dimension(178, 44));
+        btn.setFont(LABEL_FONT);
         btn.addActionListener(e -> selectTab(title));
         contentPanel.add(content, title);
         tabButtons.add(btn);
@@ -320,10 +347,11 @@ public final class MainFrame extends JFrame {
         toolbar.setAlignmentX(Component.CENTER_ALIGNMENT);
         toolbar.setBackground(TOOLBAR_BLUE);
         toolbar.setOpaque(true);
-        toolbar.setBorder(BorderFactory.createTitledBorder(
-                new RoundedUi.RoundedBorder(22, new Color(0x8FB8DA), 1), "Controls"));
+        toolbar.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedUi.RoundedBorder(22, BORDER_BLUE, 1),
+                BorderFactory.createEmptyBorder(10, 9, 10, 9)));
 
-        JButton toggle = new RoundedUi.RoundedButton("◄", 18, new Color(0x5B8AB0));
+        JButton toggle = new RoundedUi.RoundedButton("◄", 18, HOVER_BLUE);
         toggle.setPreferredSize(new Dimension(40, 40));
         toggle.setMinimumSize(new Dimension(40, 40));
         toggle.setMaximumSize(new Dimension(40, 40));
@@ -334,7 +362,9 @@ public final class MainFrame extends JFrame {
             applyToolbarMinimize();
         });
         toolbar.add(toggle);
-        toolbar.add(Box.createVerticalStrut(8));
+        toolbar.add(Box.createVerticalStrut(10));
+        toolbar.add(buildUserProfilePanel());
+        toolbar.add(Box.createVerticalStrut(12));
 
         JButton logoutButton = new RoundedUi.RoundedButton("Logout", 18, new Color(0x8A2B2B));
         logoutButton.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -378,11 +408,12 @@ public final class MainFrame extends JFrame {
         classificationFilter.setPreferredSize(new Dimension(240, 40));
         classificationFilter.setMinimumSize(new Dimension(240, 40));
         classificationFilter.setMaximumSize(new Dimension(240, 40));
-        classificationFilter.setBackground(new Color(0x2B5B8A));
-        classificationFilter.setForeground(Color.BLACK);
+        classificationFilter.setBackground(new Color(0xF7FBFF));
+        classificationFilter.setForeground(NAVY_BLUE);
+        classificationFilter.setFont(BODY_FONT);
         classificationFilter.setOpaque(true);
         classificationFilter.setComponentOrientation(java.awt.ComponentOrientation.LEFT_TO_RIGHT);
-        classificationFilter.setBorder(new RoundedUi.RoundedBorder(18, new Color(0x2B5B8A), 1));
+        classificationFilter.setBorder(new RoundedUi.RoundedBorder(18, BORDER_BLUE, 1));
         classificationFilter.setRenderer(new javax.swing.DefaultListCellRenderer() {
             public java.awt.Component getListCellRendererComponent(javax.swing.JList<?> list, Object value, int index,
                     boolean isSelected, boolean cellHasFocus) {
@@ -392,16 +423,16 @@ public final class MainFrame extends JFrame {
                 if (index < 0) {
                     // Closed (selected) state: transparent so the blue fill shows.
                     c.setOpaque(false);
-                    c.setForeground(Color.BLACK);
+                    c.setForeground(NAVY_BLUE);
                 } else if (isSelected) {
                     // Hovered / selected item: vivid blue text on a light background.
                     c.setOpaque(true);
                     c.setBackground(Color.WHITE);
-                    c.setForeground(new Color(0x0D6EFD));
+                    c.setForeground(PRIMARY_BLUE);
                 } else {
                     c.setOpaque(true);
                     c.setBackground(Color.WHITE);
-                    c.setForeground(Color.BLACK);
+                    c.setForeground(NAVY_BLUE);
                 }
                 return c;
             }
@@ -561,7 +592,7 @@ public final class MainFrame extends JFrame {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(PANEL_BLUE);
         panel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 1, 0, 0, new Color(0x8FB8DA)),
+                BorderFactory.createMatteBorder(0, 1, 0, 0, BORDER_BLUE),
                 BorderFactory.createEmptyBorder(6, 20, 6, 6)));
         JScrollPane scroll = new JScrollPane(animalTable);
         scroll.setBorder(BorderFactory.createLineBorder(PANEL_BLUE));
@@ -587,28 +618,75 @@ public final class MainFrame extends JFrame {
         }
     }
 
+    /** Alternating blue-white rows and consistent readable table typography. */
+    private static final class BlueTableRenderer extends javax.swing.table.DefaultTableCellRenderer {
+        @Override
+        public java.awt.Component getTableCellRendererComponent(javax.swing.JTable table, Object value,
+                boolean isSelected, boolean hasFocus, int row, int column) {
+            super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            setOpaque(true);
+            setFont(BODY_FONT);
+            setBorder(BorderFactory.createEmptyBorder(4, 7, 4, 7));
+            setForeground(NAVY_BLUE);
+            setBackground(isSelected ? new Color(0xC5DFF3)
+                    : (row % 2 == 0 ? Color.WHITE : ALT_ROW_BLUE));
+            if (column == 0 || column >= 2) {
+                setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+            } else {
+                setHorizontalAlignment(javax.swing.SwingConstants.LEFT);
+            }
+            return this;
+        }
+    }
+
     // Private helper for MainFrame GUI logic
     private JPanel buildImagePanel() {
         imagePanel = new JPanel();
         imagePanel.setLayout(new BoxLayout(imagePanel, BoxLayout.Y_AXIS));
         imagePanel.setBackground(PANEL_BLUE);
-        imagePanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
-        JLabel imageTitle = new JLabel("Sample Pet Image (live API)");
-        imageTitle.setAlignmentX(CENTER_ALIGNMENT);
-        imagePanel.add(imageTitle);
-        imagePanel.add(Box.createVerticalStrut(4));
-        imageLabel.setPreferredSize(IMAGE_SIZE);
-        imageLabel.setMinimumSize(new Dimension(160, 160));
-        imageLabel.setMaximumSize(new Dimension(IMAGE_SIZE.width, IMAGE_SIZE.height));
-        imageLabel.setHorizontalAlignment(JLabel.CENTER);
-        imageLabel.setAlignmentX(CENTER_ALIGNMENT);
-        imageLabel.setBorder(new RoundedUi.RoundedBorder(20, new java.awt.Color(0x8FB8DA), 1));
-        imageInfoLabel.setAlignmentX(CENTER_ALIGNMENT);
-        imagePanel.add(Box.createVerticalStrut(4));
-        imagePanel.add(imageLabel);
-        imagePanel.add(Box.createVerticalStrut(6));
-        imagePanel.add(imageInfoLabel);
+        imagePanel.setBorder(BorderFactory.createEmptyBorder(16, 12, 12, 14));
 
+        JLabel imageTitle = new JLabel("SAMPLE PET IMAGE");
+        imageTitle.setAlignmentX(CENTER_ALIGNMENT);
+        imageTitle.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 14));
+        imageTitle.setForeground(NAVY_BLUE);
+        imagePanel.add(imageTitle);
+        JLabel imageSubtitle = new JLabel("Retrieved from Dog CEO / TheCatAPI");
+        imageSubtitle.setAlignmentX(CENTER_ALIGNMENT);
+        imageSubtitle.setFont(new java.awt.Font("Segoe UI", java.awt.Font.PLAIN, 11));
+        imageSubtitle.setForeground(new Color(0x456985));
+        imagePanel.add(Box.createVerticalStrut(4));
+        imagePanel.add(imageSubtitle);
+        imagePanel.add(Box.createVerticalStrut(12));
+
+        JPanel previewCard = new JPanel(new BorderLayout());
+        previewCard.setBackground(new Color(0xF7FBFF));
+        previewCard.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedUi.RoundedBorder(20, BORDER_BLUE, 1),
+                BorderFactory.createEmptyBorder(10, 10, 10, 10)));
+        previewCard.setPreferredSize(new Dimension(286, 290));
+        previewCard.setMaximumSize(new Dimension(286, 290));
+        imageLabel.setPreferredSize(IMAGE_SIZE);
+        imageLabel.setMinimumSize(new Dimension(180, 180));
+        imageLabel.setHorizontalAlignment(JLabel.CENTER);
+        imageLabel.setVerticalAlignment(JLabel.CENTER);
+        imageLabel.setAlignmentX(CENTER_ALIGNMENT);
+        imageLabel.setOpaque(true);
+        imageLabel.setBackground(new Color(0xEAF3FA));
+        imageLabel.setForeground(NAVY_BLUE);
+        imageLabel.setFont(BODY_FONT);
+        imageLabel.setBorder(new RoundedUi.RoundedBorder(14, new Color(0xD3E4F1), 1));
+        previewCard.add(imageLabel, BorderLayout.CENTER);
+        imagePanel.add(previewCard);
+
+        imageInfoLabel.setAlignmentX(CENTER_ALIGNMENT);
+        imageInfoLabel.setForeground(NAVY_BLUE);
+        imageInfoLabel.setFont(new java.awt.Font("Segoe UI", java.awt.Font.PLAIN, 12));
+        imageInfoLabel.setBorder(BorderFactory.createEmptyBorder(8, 4, 4, 4));
+        imagePanel.add(imageInfoLabel);
+        imagePanel.add(Box.createVerticalStrut(18));
+
+        // Preserve the existing PawTrack logo and its original image source.
         java.awt.Image logo = LoginPanel.loadLogo();
         if (logo != null) {
             LoginPanel.LogoLabel logoLabel = new LoginPanel.LogoLabel(logo);
@@ -617,20 +695,54 @@ public final class MainFrame extends JFrame {
             int logoHeight = (int) (logoWidth * logo.getHeight(null) / (double) logo.getWidth(null));
             logoLabel.setPreferredSize(new Dimension(logoWidth, logoHeight));
             logoLabel.setMaximumSize(new Dimension(logoWidth, logoHeight));
-            imagePanel.add(Box.createVerticalStrut(10));
             imagePanel.add(logoLabel);
         }
-
         return imagePanel;
+    }
+
+    /** Displays the identity and role of the account that completed login. */
+    private JPanel buildUserProfilePanel() {
+        JPanel profile = new JPanel();
+        profile.setLayout(new BoxLayout(profile, BoxLayout.Y_AXIS));
+        profile.setBackground(new Color(0xD8EAF7));
+        profile.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedUi.RoundedBorder(16, BORDER_BLUE, 1),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        profile.setAlignmentX(Component.CENTER_ALIGNMENT);
+        profile.setMaximumSize(new Dimension(270, 76));
+
+        JLabel caption = new JLabel("SIGNED IN AS");
+        caption.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 10));
+        caption.setForeground(new Color(0x52738D));
+        caption.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel username = new JLabel(user.getUsername());
+        username.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 14));
+        username.setForeground(NAVY_BLUE);
+        username.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        String roleText = user.getRole() == Role.STAFF ? "STAFF ACCOUNT" : "ADOPTER ACCOUNT";
+        JLabel role = new JLabel(roleText);
+        role.setFont(new java.awt.Font("Segoe UI", java.awt.Font.BOLD, 10));
+        role.setForeground(PRIMARY_BLUE);
+        role.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        profile.add(caption);
+        profile.add(Box.createVerticalStrut(3));
+        profile.add(username);
+        profile.add(Box.createVerticalStrut(2));
+        profile.add(role);
+        return profile;
     }
 
     // Private helper for MainFrame GUI logic
     private JButton button(String text, Runnable action) {
-        RoundedUi.RoundedButton button = new RoundedUi.RoundedButton(text, 18, new Color(0x2B5B8A));
+        RoundedUi.RoundedButton button = new RoundedUi.RoundedButton(text, 18, PRIMARY_BLUE);
         button.setAlignmentX(Component.CENTER_ALIGNMENT);
-        button.setPreferredSize(new Dimension(240, 40));
-        button.setMinimumSize(new Dimension(240, 40));
-        button.setMaximumSize(new Dimension(240, 40));
+        button.setPreferredSize(new Dimension(250, 44));
+        button.setMinimumSize(new Dimension(225, 44));
+        button.setMaximumSize(new Dimension(270, 44));
+        button.setFont(BODY_FONT);
         button.addActionListener(event -> action.run());
         return button;
     }
@@ -736,7 +848,7 @@ public final class MainFrame extends JFrame {
     private static final class StatusHeaderRenderer extends javax.swing.table.DefaultTableCellRenderer {
         StatusHeaderRenderer() {
             setOpaque(true);
-            setBackground(new Color(0x2B5B8A));
+            setBackground(PRIMARY_BLUE);
             setForeground(Color.WHITE);
         }
 
@@ -846,7 +958,7 @@ public final class MainFrame extends JFrame {
             int h = getHeight() - s;
             g2.setColor(new Color(0, 0, 0, 70));
             g2.fillRoundRect(s, s, w, h, 22, 22);
-            g2.setColor(new Color(0x2B5B8A));
+            g2.setColor(PRIMARY_BLUE);
             g2.fillRoundRect(0, 0, w, h, 22, 22);
             g2.dispose();
             super.paintComponent(g);
@@ -987,9 +1099,9 @@ public final class MainFrame extends JFrame {
         };
         waitlistTable = new JTable(waitlistModel);
         waitlistTable.setBackground(PANEL_BLUE);
-        waitlistTable.setGridColor(new Color(0x8FB8DA));
+        waitlistTable.setGridColor(BORDER_BLUE);
         waitlistTable.setFillsViewportHeight(true);
-        waitlistTable.getTableHeader().setBackground(new Color(0x2B5B8A));
+        waitlistTable.getTableHeader().setBackground(PRIMARY_BLUE);
         waitlistTable.getTableHeader().setForeground(Color.WHITE);
         waitlistTable.getTableHeader().setDefaultRenderer(new javax.swing.table.DefaultTableCellRenderer() {
             @Override
@@ -998,7 +1110,7 @@ public final class MainFrame extends JFrame {
                 javax.swing.JLabel c = (javax.swing.JLabel) super.getTableCellRendererComponent(
                         table, value, isSelected, hasFocus, row, column);
                 c.setOpaque(true);
-                c.setBackground(new Color(0x2B5B8A));
+                c.setBackground(PRIMARY_BLUE);
                 c.setForeground(Color.WHITE);
                 return c;
             }
