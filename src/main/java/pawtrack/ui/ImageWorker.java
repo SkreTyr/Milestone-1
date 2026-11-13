@@ -1,4 +1,4 @@
-package pawtrack.gui;
+package pawtrack.ui;
 
 import pawtrack.api.HttpJson;
 import pawtrack.api.PetImageResult;

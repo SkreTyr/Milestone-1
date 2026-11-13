@@ -1,4 +1,4 @@
-package pawtrack.db;
+package pawtrack.dao;
 
 import pawtrack.model.ClassificationNode;
 

@@ -1,12 +1,12 @@
-package pawtrack.gui;
+package pawtrack.ui;
 
 import pawtrack.api.PetImageServiceFactory;
-import pawtrack.db.AdopterDao;
-import pawtrack.db.AdoptionRecordDao;
-import pawtrack.db.AnimalDao;
-import pawtrack.db.ClassificationDao;
-import pawtrack.db.Database;
-import pawtrack.db.WaitlistDao;
+import pawtrack.dao.AdopterDao;
+import pawtrack.dao.AdoptionRecordDao;
+import pawtrack.dao.AnimalDao;
+import pawtrack.dao.ClassificationDao;
+import pawtrack.dao.Database;
+import pawtrack.dao.WaitlistDao;
 import pawtrack.model.Adopter;
 import pawtrack.model.AdoptionRecord;
 import pawtrack.model.Animal;
@@ -22,8 +22,9 @@ import pawtrack.service.ShelterSeeder;
 import pawtrack.service.StatusHistoryService;
 import pawtrack.service.WaitlistService;
 
-import pawtrack.security.Credentials;
-import pawtrack.security.Credentials.Role;
+
+import pawtrack.model.Role;
+import pawtrack.model.User;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -37,7 +38,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
-import javax.swing.JTabbedPane;
+import java.awt.CardLayout;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
@@ -46,10 +47,7 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Cursor;
 import java.awt.Dimension;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.awt.GridLayout;
 import java.io.File;
 import java.nio.file.Files;
@@ -74,6 +72,12 @@ public final class MainFrame extends JFrame {
     private static final String ALL_CLASSIFICATIONS = "<All animals>";
     // Private helper for MainFrame GUI logic
     private static final Dimension IMAGE_SIZE = new Dimension(360, 360);
+    private static final Color PANEL_BLUE = new Color(0xAFD3F2);
+    private static final Color TOOLBAR_BLUE = new Color(0x9FC5E8);
+    private static final Color TAB_COLOR = new Color(0x1F4366);
+    private static final Color TAB_SELECTED_COLOR = new Color(0x2B5B8A);
+    private static final java.util.logging.Logger LOGGER =
+            java.util.logging.Logger.getLogger(MainFrame.class.getName());
 
     private final Database database;
     private final AnimalDao animalDao;
@@ -96,18 +100,22 @@ public final class MainFrame extends JFrame {
     private final JTable animalTable = new JTable(tableModel);
     // Private helper for MainFrame GUI logic
     private final JTextArea logArea = new JTextArea();
-    private JTabbedPane tabs;
+    private CardLayout cardLayout;
+    private JPanel contentPanel;
+    private final java.util.List<RoundedUi.RoundedButton> tabButtons = new java.util.ArrayList<>();
+    private final java.util.List<String> tabNames = new java.util.ArrayList<>();
     private JPanel toolbar;
     private JPanel imagePanel;
     private boolean toolbarMinimized = false;
-    private final Role role;
+    private javax.swing.JDialog statusPopup;
+    private final User user;
     private Runnable onLogout;
     // Private helper for MainFrame GUI logic
     private final JProgressBar progressBar = new JProgressBar(0, 100);
     // Private helper for MainFrame GUI logic
     private final JLabel statusLabel = new JLabel("Ready");
     // Private helper for MainFrame GUI logic
-    private final JComboBox<String> classificationFilter = new JComboBox<>();
+    private final JComboBox<String> classificationFilter = new RoundedUi.RoundedComboBox(18);
     // Private helper for MainFrame GUI logic
     private final JLabel imageLabel = new JLabel();
     // Private helper for MainFrame GUI logic
@@ -115,11 +123,10 @@ public final class MainFrame extends JFrame {
     // Private helper for MainFrame GUI logic
     private final AnalyticsPanel analyticsPanel = new AnalyticsPanel();
 
-    public MainFrame(Role role) throws SQLException {
+    public MainFrame(User user, Database database) throws SQLException {
         super("Pet Shelter & Adoption Tracker");
-        this.role = role;
-        String dbPath = System.getProperty("petshelter.db", "petshelter.db");
-        this.database = Database.openFile(dbPath);
+        this.user = user;
+        this.database = database;
         this.animalDao = new AnimalDao(database);
         this.adopterDao = new AdopterDao(database);
         this.recordDao = new AdoptionRecordDao(database);
@@ -135,7 +142,7 @@ public final class MainFrame extends JFrame {
         refreshAnimals();
         refreshAnalytics();
 
-        log("Database ready: " + dbPath);
+        log("Database ready");
         log(String.format("Classification tree loaded: %d nodes, depth %d",
                 classification.nodeCount(), classification.depth()));
     }
@@ -152,19 +159,36 @@ public final class MainFrame extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout(6, 6));
         setMinimumSize(new Dimension(900, 600));
+        java.awt.Image icon = Icons.appIcon();
+        if (icon != null) {
+            setIconImage(icon);
+        }
+        getContentPane().setBackground(PANEL_BLUE);
 
         add(buildToolbar(), BorderLayout.WEST);
 
-        tabs = new JTabbedPane();
-        tabs.addTab("Animals", buildAnimalTab());
-        if (role == Role.ADMIN) {
-            tabs.addTab("Shelter Analytics", analyticsPanel);
+        cardLayout = new CardLayout();
+        contentPanel = new JPanel(cardLayout);
+        contentPanel.setBackground(PANEL_BLUE);
+        addTabButton("Animals", buildAnimalTab());
+        analyticsPanel.setBackground(PANEL_BLUE);
+        analyticsPanel.setOpaque(true);
+        if (user.getRole() == Role.STAFF) {
+            addTabButton("Shelter Analytics", analyticsPanel);
         }
-        if (role == Role.ADMIN) {
+        if (user.getRole() == Role.STAFF) {
+            logArea.setBackground(PANEL_BLUE);
+            logArea.setOpaque(true);
             JScrollPane activityScroll = new JScrollPane(logArea);
-            tabs.addTab("Activity Log", activityScroll);
+            activityScroll.getViewport().setBackground(PANEL_BLUE);
+            styleScrollBar(activityScroll.getVerticalScrollBar());
+            addTabButton("Activity Log", activityScroll);
         }
-        add(tabs, BorderLayout.CENTER);
+        add(contentPanel, BorderLayout.CENTER);
+        add(buildTabBar(), BorderLayout.NORTH);
+        if (!tabNames.isEmpty()) {
+            selectTab(tabNames.get(0));
+        }
 
         add(buildImagePanel(), BorderLayout.EAST);
         add(statusLabel, BorderLayout.SOUTH);
@@ -178,7 +202,25 @@ public final class MainFrame extends JFrame {
 
         logArea.setEditable(false);
         animalTable.setFillsViewportHeight(true);
+        animalTable.setBackground(PANEL_BLUE);
+        animalTable.setGridColor(new Color(0x8FB8DA));
+        animalTable.getTableHeader().setOpaque(true);
+        animalTable.getTableHeader().setBackground(new Color(0x2B5B8A));
+        animalTable.getTableHeader().setForeground(Color.WHITE);
+        animalTable.getTableHeader().setDefaultRenderer(new javax.swing.table.DefaultTableCellRenderer() {
+            @Override
+            public java.awt.Component getTableCellRendererComponent(javax.swing.JTable table, Object value,
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                javax.swing.JLabel c = (javax.swing.JLabel) super.getTableCellRendererComponent(
+                        table, value, isSelected, hasFocus, row, column);
+                c.setOpaque(true);
+                c.setBackground(new Color(0x2B5B8A));
+                c.setForeground(Color.WHITE);
+                return c;
+            }
+        });
         animalTable.setAutoCreateRowSorter(true);
+        configureStatusFilter();
         animalTable.getSelectionModel().addListSelectionListener(event -> {
             if (!event.getValueIsAdjusting()) {
                 updateSelectedAnimalInfo();
@@ -190,8 +232,9 @@ public final class MainFrame extends JFrame {
             public void windowClosing(java.awt.event.WindowEvent event) {
                 try {
                     database.close();
-                } catch (SQLException ignored) {
+                } catch (SQLException failure) {
                     // nothing useful to do while shutting down
+                    MainFrame.LOGGER.log(java.util.logging.Level.WARNING, "Failed to close database", failure);
                 }
             }
         });
@@ -201,18 +244,48 @@ public final class MainFrame extends JFrame {
     }
 
     // Private helper for MainFrame GUI logic
+    private void addTabButton(String title, java.awt.Component content) {
+        RoundedUi.RoundedButton btn = new RoundedUi.RoundedButton(title, 18, TAB_COLOR);
+        btn.setPreferredSize(new Dimension(170, 40));
+        btn.setMaximumSize(new Dimension(170, 40));
+        btn.addActionListener(e -> selectTab(title));
+        contentPanel.add(content, title);
+        tabButtons.add(btn);
+        tabNames.add(title);
+    }
+
+    // Private helper for MainFrame GUI logic
+    private JPanel buildTabBar() {
+        JPanel bar = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 8, 8));
+        bar.setOpaque(false);
+        for (RoundedUi.RoundedButton b : tabButtons) {
+            bar.add(b);
+        }
+        return bar;
+    }
+
+    // Private helper for MainFrame GUI logic
+    private void selectTab(String title) {
+        cardLayout.show(contentPanel, title);
+        for (int i = 0; i < tabButtons.size(); i++) {
+            tabButtons.get(i).setBaseColor(tabNames.get(i).equals(title) ? TAB_SELECTED_COLOR : TAB_COLOR);
+        }
+    }
+
+    // Private helper for MainFrame GUI logic
     private JPanel buildToolbar() {
         toolbar = new JPanel();
         toolbar.setLayout(new BoxLayout(toolbar, BoxLayout.Y_AXIS));
         toolbar.setAlignmentX(Component.CENTER_ALIGNMENT);
-        toolbar.setBorder(BorderFactory.createTitledBorder("Controls"));
+        toolbar.setBackground(TOOLBAR_BLUE);
+        toolbar.setOpaque(true);
+        toolbar.setBorder(BorderFactory.createTitledBorder(
+                new RoundedUi.RoundedBorder(22, new Color(0x8FB8DA), 1), "Controls"));
 
-        JButton toggle = new JButton("◄");
-        toggle.setFocusPainted(false);
-        toggle.setPreferredSize(new Dimension(30, 30));
-        toggle.setMinimumSize(new Dimension(30, 30));
-        toggle.setMaximumSize(new Dimension(30, 30));
-        toggle.setBorder(new RoundedBorder(15, new Color(0xCCCCCC), 1));
+        JButton toggle = new RoundedUi.RoundedButton("◄", 18, new Color(0x5B8AB0));
+        toggle.setPreferredSize(new Dimension(40, 40));
+        toggle.setMinimumSize(new Dimension(40, 40));
+        toggle.setMaximumSize(new Dimension(40, 40));
         toggle.setAlignmentX(Component.RIGHT_ALIGNMENT);
         toggle.addActionListener(event -> {
             toolbarMinimized = !toolbarMinimized;
@@ -222,16 +295,11 @@ public final class MainFrame extends JFrame {
         toolbar.add(toggle);
         toolbar.add(Box.createVerticalStrut(8));
 
-        JButton logoutButton = new JButton("Logout");
+        JButton logoutButton = new RoundedUi.RoundedButton("Logout", 18, new Color(0x8A2B2B));
         logoutButton.setAlignmentX(Component.CENTER_ALIGNMENT);
         logoutButton.setPreferredSize(new Dimension(240, 40));
         logoutButton.setMinimumSize(new Dimension(240, 40));
         logoutButton.setMaximumSize(new Dimension(240, 40));
-        logoutButton.setBorder(new RoundedBorder(25, new Color(0xCCCCCC), 1));
-        logoutButton.setBackground(new Color(0x8A2B2B));
-        logoutButton.setForeground(Color.BLACK);
-        logoutButton.setFocusPainted(false);
-        logoutButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         logoutButton.addActionListener(event -> {
             if (onLogout != null) {
                 onLogout.run();
@@ -244,13 +312,13 @@ public final class MainFrame extends JFrame {
         toolbar.add(Box.createVerticalStrut(16));
         toolbar.add(button("Filter by Classification", this::onFilterByClassification));
         toolbar.add(Box.createVerticalStrut(16));
-        if (role == Role.ADMIN) {
+        if (user.getRole() == Role.STAFF) {
             toolbar.add(button("Import Intake History (CSV)", this::onImportCsv));
             toolbar.add(Box.createVerticalStrut(16));
         }
         toolbar.add(button("Record Interest", this::onRecordInterest));
         toolbar.add(Box.createVerticalStrut(16));
-        if (role == Role.ADMIN) {
+        if (user.getRole() == Role.STAFF) {
             toolbar.add(button("Mark Adopted", this::onMarkAdopted));
             toolbar.add(Box.createVerticalStrut(16));
             toolbar.add(button("Undo Last Status Change", this::onUndo));
@@ -263,13 +331,31 @@ public final class MainFrame extends JFrame {
         classificationFilter.setPreferredSize(new Dimension(240, 40));
         classificationFilter.setMinimumSize(new Dimension(240, 40));
         classificationFilter.setMaximumSize(new Dimension(240, 40));
-        classificationFilter.setBorder(new RoundedBorder(25, new Color(0xCCCCCC), 1));
+        classificationFilter.setBackground(new Color(0x2B5B8A));
+        classificationFilter.setForeground(Color.BLACK);
+        classificationFilter.setOpaque(true);
+        classificationFilter.setComponentOrientation(java.awt.ComponentOrientation.LEFT_TO_RIGHT);
+        classificationFilter.setBorder(new RoundedUi.RoundedBorder(18, new Color(0x2B5B8A), 1));
         classificationFilter.setRenderer(new javax.swing.DefaultListCellRenderer() {
             public java.awt.Component getListCellRendererComponent(javax.swing.JList<?> list, Object value, int index,
                     boolean isSelected, boolean cellHasFocus) {
                 javax.swing.JLabel c = (javax.swing.JLabel) super.getListCellRendererComponent(list, value, index,
                         isSelected, cellHasFocus);
-                c.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+                c.setHorizontalAlignment(javax.swing.SwingConstants.LEFT);
+                if (index < 0) {
+                    // Closed (selected) state: transparent so the blue fill shows.
+                    c.setOpaque(false);
+                    c.setForeground(Color.BLACK);
+                } else if (isSelected) {
+                    // Hovered / selected item: vivid blue text on a light background.
+                    c.setOpaque(true);
+                    c.setBackground(Color.WHITE);
+                    c.setForeground(new Color(0x0D6EFD));
+                } else {
+                    c.setOpaque(true);
+                    c.setBackground(Color.WHITE);
+                    c.setForeground(Color.BLACK);
+                }
                 return c;
             }
         });
@@ -344,109 +430,137 @@ public final class MainFrame extends JFrame {
     }
 
     private String shorten(String text) {
-        if (text == null) return text;
-        if (text.startsWith("List")) return "List...";
-        if (text.startsWith("Filter")) return "Filter...";
-        if (text.startsWith("Import")) return "Import...";
-        if (text.startsWith("Record")) return "Record...";
-        if (text.startsWith("Mark")) return "Mark...";
-        if (text.startsWith("Undo")) return "Undo...";
-        if (text.startsWith("Fetch")) return "Fetch...";
-        if (text.contains("All")) return "<all...";
+        if (text == null) {
+            return text;
+        }
+        if (text.startsWith("List")) {
+            return "List...";
+        }
+        if (text.startsWith("Filter")) {
+            return "Filter...";
+        }
+        if (text.startsWith("Import")) {
+            return "Import...";
+        }
+        if (text.startsWith("Record")) {
+            return "Record...";
+        }
+        if (text.startsWith("Mark")) {
+            return "Mark...";
+        }
+        if (text.startsWith("Undo")) {
+            return "Undo...";
+        }
+        if (text.startsWith("Fetch")) {
+            return "Fetch...";
+        }
+        if (text.contains("All")) {
+            return "<all...";
+        }
         return text.length() > 6 ? text.substring(0, 6) + "..." : text;
     }
 
     private String restoreText(String text) {
-        if (text.equals("List...")) return "List / Refresh Animals";
-        if (text.equals("Filter...")) return "Filter by Classification";
-        if (text.equals("Import...")) return "Import Intake History (CSV)";
-        if (text.equals("Record...")) return "Record Interest";
-        if (text.equals("Mark...")) return "Mark Adopted";
-        if (text.equals("Undo...")) return "Undo Last Status Change";
-        if (text.equals("Fetch...")) return "Fetch Sample Pet Image";
-        if (text.equals("<all...")) return "<All animals>";
+        if (text.equals("List...")) {
+            return "List / Refresh Animals";
+        }
+        if (text.equals("Filter...")) {
+            return "Filter by Classification";
+        }
+        if (text.equals("Import...")) {
+            return "Import Intake History (CSV)";
+        }
+        if (text.equals("Record...")) {
+            return "Record Interest";
+        }
+        if (text.equals("Mark...")) {
+            return "Mark Adopted";
+        }
+        if (text.equals("Undo...")) {
+            return "Undo Last Status Change";
+        }
+        if (text.equals("Fetch...")) {
+            return "Fetch Sample Pet Image";
+        }
+        if (text.equals("<all...")) {
+            return "<All animals>";
+        }
         return text;
     }
 
     // Private helper for MainFrame GUI logic
     private JPanel buildAnimalTab() {
         JPanel panel = new JPanel(new BorderLayout());
-        panel.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
-        panel.add(new JScrollPane(animalTable), BorderLayout.CENTER);
+        panel.setBackground(PANEL_BLUE);
+        panel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 1, 0, 0, new Color(0x8FB8DA)),
+                BorderFactory.createEmptyBorder(6, 6, 6, 6)));
+        JScrollPane scroll = new JScrollPane(animalTable);
+        scroll.setBorder(BorderFactory.createLineBorder(PANEL_BLUE));
+        scroll.getViewport().setBackground(PANEL_BLUE);
+        styleScrollBar(scroll.getVerticalScrollBar());
+        styleScrollBar(scroll.getHorizontalScrollBar());
+        panel.add(scroll, BorderLayout.CENTER);
         return panel;
+    }
+
+    // Private helper for MainFrame GUI logic
+    private static void styleScrollBar(javax.swing.JScrollBar bar) {
+        bar.setUI(new javax.swing.plaf.metal.MetalScrollBarUI());
+        bar.setBackground(PANEL_BLUE);
+        for (java.awt.Component comp : bar.getComponents()) {
+            if (comp instanceof javax.swing.JButton button) {
+                button.setBorder(BorderFactory.createEmptyBorder());
+                button.setFocusPainted(false);
+                button.setContentAreaFilled(true);
+                button.setOpaque(true);
+                button.setBackground(PANEL_BLUE);
+            }
+        }
     }
 
     // Private helper for MainFrame GUI logic
     private JPanel buildImagePanel() {
         imagePanel = new JPanel();
         imagePanel.setLayout(new BoxLayout(imagePanel, BoxLayout.Y_AXIS));
-        imagePanel.setBorder(BorderFactory.createTitledBorder("Sample Pet Image (live API)"));
+        imagePanel.setBackground(PANEL_BLUE);
+        imagePanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         imageLabel.setPreferredSize(IMAGE_SIZE);
         imageLabel.setMinimumSize(new Dimension(200, 200));
         imageLabel.setMaximumSize(new Dimension(400, 400));
         imageLabel.setHorizontalAlignment(JLabel.CENTER);
         imageLabel.setAlignmentX(CENTER_ALIGNMENT);
-        imageLabel.setBorder(BorderFactory.createLineBorder(new java.awt.Color(0xCCCCCC)));
+        imageLabel.setBorder(new RoundedUi.RoundedBorder(20, new java.awt.Color(0x8FB8DA), 1));
         imageInfoLabel.setAlignmentX(CENTER_ALIGNMENT);
         imagePanel.add(Box.createVerticalStrut(6));
         imagePanel.add(imageLabel);
         imagePanel.add(Box.createVerticalStrut(6));
         imagePanel.add(imageInfoLabel);
+
+        java.awt.Image logo = LoginPanel.loadLogo();
+        if (logo != null) {
+            LoginPanel.LogoLabel logoLabel = new LoginPanel.LogoLabel(logo);
+            logoLabel.setAlignmentX(CENTER_ALIGNMENT);
+            int logoWidth = 180;
+            int logoHeight = (int) (logoWidth * logo.getHeight(null) / (double) logo.getWidth(null));
+            logoLabel.setPreferredSize(new Dimension(logoWidth, logoHeight));
+            logoLabel.setMaximumSize(new Dimension(logoWidth, logoHeight));
+            imagePanel.add(Box.createVerticalStrut(10));
+            imagePanel.add(logoLabel);
+        }
+
         return imagePanel;
     }
 
     // Private helper for MainFrame GUI logic
     private JButton button(String text, Runnable action) {
-        JButton button = new JButton(text);
+        RoundedUi.RoundedButton button = new RoundedUi.RoundedButton(text, 18, new Color(0x2B5B8A));
         button.setAlignmentX(Component.CENTER_ALIGNMENT);
         button.setPreferredSize(new Dimension(240, 40));
         button.setMinimumSize(new Dimension(240, 40));
         button.setMaximumSize(new Dimension(240, 40));
-        button.setBorder(new RoundedBorder(25, new Color(0xCCCCCC), 1));
-        button.setBackground(new Color(0x2B5B8A));
-        button.setForeground(Color.BLACK);
-        button.setFocusPainted(false);
-        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        Color normal = new Color(0x2B5B8A);
-        Color hover = new Color(0x1F4366);
-        Color pressed = new Color(0x142D4A);
-        button.addMouseListener(new MouseAdapter() {
-            public void mouseEntered(MouseEvent e) { button.setBackground(hover); }
-            public void mouseExited(MouseEvent e) { button.setBackground(normal); }
-            public void mousePressed(MouseEvent e) { button.setBackground(pressed); }
-            public void mouseReleased(MouseEvent e) { button.setBackground(button.contains(e.getPoint()) ? hover : normal); }
-        });
         button.addActionListener(event -> action.run());
         return button;
-    }
-
-    /** Simple rounded-rectangle border for Swing buttons. */
-    private static final class RoundedBorder implements javax.swing.border.Border {
-        private final int radius;
-        private final Color color;
-        private final int thickness;
-
-        RoundedBorder(int radius, Color color, int thickness) {
-            this.radius = radius;
-            this.color = color;
-            this.thickness = thickness;
-        }
-
-        public java.awt.Insets getBorderInsets(java.awt.Component c) {
-            return new java.awt.Insets(thickness, thickness, thickness, thickness);
-        }
-
-        public boolean isBorderOpaque() {
-            return false;
-        }
-
-        public void paintBorder(java.awt.Component c, java.awt.Graphics g, int x, int y, int w, int h) {
-            java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
-            g2.setColor(color);
-            g2.setStroke(new java.awt.BasicStroke(thickness));
-            g2.drawRoundRect(x, y, w - 1, h - 1, radius, radius);
-            g2.dispose();
-        }
     }
 
     // ------------------------------------------------------------- actions
@@ -564,6 +678,156 @@ public final class MainFrame extends JFrame {
             statusLabel.setText("Interest recorded for " + animal.getName());
         } catch (SQLException | IllegalArgumentException failure) {
             error("Could not record interest", failure);
+        }
+    }
+
+    // Private helper for MainFrame GUI logic
+    private void configureStatusFilter() {
+        javax.swing.table.JTableHeader header = animalTable.getTableHeader();
+        header.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                int column = header.columnAtPoint(e.getPoint());
+                if (column == 6) {
+                    showStatusFilterMenu(header, e.getX(), e.getY());
+                }
+            }
+        });
+        javax.swing.table.TableColumn statusColumn = animalTable.getColumnModel().getColumn(6);
+        statusColumn.setHeaderRenderer(new StatusHeaderRenderer());
+    }
+
+    /** Header cell renderer for the Status column that shows a down-arrow icon. */
+    private static final class StatusHeaderRenderer extends javax.swing.table.DefaultTableCellRenderer {
+        StatusHeaderRenderer() {
+            setOpaque(true);
+            setBackground(new Color(0x2B5B8A));
+            setForeground(Color.WHITE);
+        }
+
+        @Override
+        public java.awt.Component getTableCellRendererComponent(javax.swing.JTable table, Object value,
+                boolean isSelected, boolean hasFocus, int row, int column) {
+            super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            setText(value + " \u25BC");
+            return this;
+        }
+    }
+
+    // Private helper for MainFrame GUI logic
+    private void showStatusFilterMenu(java.awt.Component invoker, int x, int y) {
+        // Close any previously opened status panel first (prevents stacking).
+        if (statusPopup != null) {
+            statusPopup.setVisible(false);
+            statusPopup.dispose();
+            statusPopup = null;
+        }
+
+        java.awt.Window owner = javax.swing.SwingUtilities.getWindowAncestor(invoker);
+        javax.swing.JDialog dialog = new javax.swing.JDialog(owner, java.awt.Dialog.ModalityType.MODELESS);
+        dialog.setUndecorated(true);
+        dialog.setBackground(new Color(0, 0, 0, 0));
+        ((javax.swing.JComponent) dialog.getContentPane()).setOpaque(false);
+
+        StatusPopupPanel panel = new StatusPopupPanel();
+        final javax.swing.JDialog d = dialog;
+        Runnable close = () -> {
+            if (statusPopup == d) {
+                statusPopup = null;
+            }
+        };
+        panel.addOption("All", () -> applyStatusFilter(null), dialog, close);
+        for (AnimalStatus status : AnimalStatus.values()) {
+            panel.addOption(status.label(), () -> applyStatusFilter(status.label()), dialog, close);
+        }
+        dialog.getContentPane().add(panel);
+        dialog.pack();
+        java.awt.Point location = invoker.getLocationOnScreen();
+        dialog.setLocation(location.x + x, location.y + y);
+
+        final javax.swing.JDialog current = dialog;
+        dialog.addWindowFocusListener(new java.awt.event.WindowFocusListener() {
+            @Override
+            public void windowGainedFocus(java.awt.event.WindowEvent e) {
+            }
+
+            @Override
+            public void windowLostFocus(java.awt.event.WindowEvent e) {
+                current.setVisible(false);
+                current.dispose();
+                if (statusPopup == current) {
+                    statusPopup = null;
+                }
+            }
+        });
+
+        statusPopup = dialog;
+        dialog.setVisible(true);
+    }
+
+    /** Rounded blue drop-down panel with a soft shadow (custom-painted). */
+    private static final class StatusPopupPanel extends JPanel {
+        StatusPopupPanel() {
+            setOpaque(false);
+            setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+            setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        }
+
+        void addOption(String text, Runnable action, javax.swing.JDialog dialog, Runnable onClose) {
+            JLabel label = new JLabel(text);
+            label.setForeground(Color.WHITE);
+            label.setOpaque(false);
+            label.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
+            label.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+            label.addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mouseEntered(java.awt.event.MouseEvent e) {
+                    label.setForeground(new Color(0xBFD7F2));
+                }
+
+                @Override
+                public void mouseExited(java.awt.event.MouseEvent e) {
+                    label.setForeground(Color.WHITE);
+                }
+
+                @Override
+                public void mouseClicked(java.awt.event.MouseEvent e) {
+                    action.run();
+                    dialog.setVisible(false);
+                    dialog.dispose();
+                    onClose.run();
+                }
+            });
+            add(label);
+        }
+
+        @Override
+        protected void paintComponent(java.awt.Graphics g) {
+            java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
+            g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+                    java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+            int s = 3;
+            int w = getWidth() - s;
+            int h = getHeight() - s;
+            g2.setColor(new Color(0, 0, 0, 70));
+            g2.fillRoundRect(s, s, w, h, 22, 22);
+            g2.setColor(new Color(0x2B5B8A));
+            g2.fillRoundRect(0, 0, w, h, 22, 22);
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
+    // Private helper for MainFrame GUI logic
+    private void applyStatusFilter(String label) {
+        javax.swing.table.TableRowSorter<javax.swing.table.TableModel> sorter =
+                (javax.swing.table.TableRowSorter<javax.swing.table.TableModel>) animalTable.getRowSorter();
+        if (label == null) {
+            sorter.setRowFilter(null);
+            statusLabel.setText("Showing all animals");
+        } else {
+            sorter.setRowFilter(javax.swing.RowFilter.regexFilter(java.util.regex.Pattern.quote(label), 6));
+            statusLabel.setText("Filtered by status: " + label);
         }
     }
 

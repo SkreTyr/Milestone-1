@@ -1,6 +1,6 @@
 package pawtrack.service;
 
-import pawtrack.db.ClassificationDao;
+import pawtrack.dao.ClassificationDao;
 import pawtrack.model.ClassificationNode;
 import pawtrack.model.Species;
 import org.junit.jupiter.api.BeforeEach;

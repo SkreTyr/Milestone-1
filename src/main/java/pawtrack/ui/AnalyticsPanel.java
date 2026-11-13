@@ -1,4 +1,4 @@
-package pawtrack.gui;
+package pawtrack.ui;
 
 import pawtrack.service.AnalyticsReport;
 
