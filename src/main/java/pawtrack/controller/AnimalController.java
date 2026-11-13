@@ -70,6 +70,33 @@ public final class AnimalController {
         return Collections.unmodifiableList(animals);
     }
 
+    /** Inserts a new animal and refreshes the in-memory list. */
+    public Animal addAnimal(Animal animal) throws SQLException {
+        animalDao.insert(animal);
+        animals.add(animal);
+        notifyChange();
+        setStatus("Added " + animal.getName());
+        return animal;
+    }
+
+    /** Updates an existing animal's details and status. */
+    public boolean updateAnimal(Animal animal) throws SQLException {
+        boolean updated = animalDao.updateDetails(animal.getId(), animal.getName(), animal.getBreed(),
+                animal.getAgeMonths(), animal.getIntakeDate());
+        animalDao.updateStatus(animal.getId(), animal.getStatus());
+        refresh();
+        return updated;
+    }
+
+    /** Deletes an animal by id and refreshes the in-memory list. */
+    public boolean deleteAnimal(int id) throws SQLException {
+        boolean deleted = animalDao.deleteById(id);
+        animals.removeIf(a -> a.getId() == id);
+        notifyChange();
+        setStatus(deleted ? "Animal deleted" : "Animal not found");
+        return deleted;
+    }
+
     public void setAnimals(List<Animal> animals) {
         this.animals = new ArrayList<>(animals);
         notifyChange();

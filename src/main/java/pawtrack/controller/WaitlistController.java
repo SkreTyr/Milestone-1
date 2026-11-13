@@ -11,6 +11,8 @@ import pawtrack.service.WaitlistService;
 
 import java.sql.SQLException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 public final class WaitlistController {
@@ -58,5 +60,37 @@ public final class WaitlistController {
             adopterDao.findById(entry.adopterId())
                     .ifPresent(adopter -> waitlist.addInterest(entry.animalId(), adopter));
         }
+    }
+
+    /** A waitlist row enriched with the animal and adopter objects. */
+    public record WaitlistRequest(Animal animal, Adopter adopter, LocalDateTime requestedAt, int position) {
+    }
+
+    /** All waitlist requests (staff view), enriched with animal + adopter. */
+    public List<WaitlistRequest> getRequests() throws SQLException {
+        List<WaitlistRequest> requests = new ArrayList<>();
+        for (WaitlistDao.Entry entry : waitlistDao.loadAll()) {
+            Optional<Animal> animal = animalDao.findById(entry.animalId());
+            Optional<Adopter> adopter = adopterDao.findById(entry.adopterId());
+            if (animal.isPresent() && adopter.isPresent()) {
+                requests.add(new WaitlistRequest(animal.get(), adopter.get(),
+                        entry.requestedAt(), entry.position()));
+            }
+        }
+        return requests;
+    }
+
+    /** Waitlist requests belonging to a specific adopter (adopter view). */
+    public List<WaitlistRequest> findByAdopterId(int adopterId) throws SQLException {
+        List<WaitlistRequest> requests = new ArrayList<>();
+        for (WaitlistDao.Entry entry : waitlistDao.findByAdopterId(adopterId)) {
+            Optional<Animal> animal = animalDao.findById(entry.animalId());
+            Optional<Adopter> adopter = adopterDao.findById(entry.adopterId());
+            if (animal.isPresent() && adopter.isPresent()) {
+                requests.add(new WaitlistRequest(animal.get(), adopter.get(),
+                        entry.requestedAt(), entry.position()));
+            }
+        }
+        return requests;
     }
 }

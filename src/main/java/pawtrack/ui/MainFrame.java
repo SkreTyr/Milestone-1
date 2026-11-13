@@ -1,24 +1,28 @@
 package pawtrack.ui;
 
 import pawtrack.api.PetImageServiceFactory;
+import pawtrack.controller.AdoptionController;
+import pawtrack.controller.AnalyticsController;
+import pawtrack.controller.AnimalController;
+import pawtrack.controller.AuthController;
+import pawtrack.controller.ClassificationController;
+import pawtrack.controller.ImportController;
+import pawtrack.controller.WaitlistController;
 import pawtrack.dao.AdopterDao;
 import pawtrack.dao.AdoptionRecordDao;
 import pawtrack.dao.AnimalDao;
 import pawtrack.dao.ClassificationDao;
 import pawtrack.dao.Database;
 import pawtrack.dao.WaitlistDao;
+import pawtrack.dao.UserDao;
 import pawtrack.model.Adopter;
 import pawtrack.model.AdoptionRecord;
 import pawtrack.model.Animal;
 import pawtrack.model.AnimalStatus;
 import pawtrack.model.Species;
-import pawtrack.model.ClassificationNode;
 import pawtrack.model.StatusChange;
-import pawtrack.service.AnalyticsReport;
 import pawtrack.service.AnalyticsService;
 import pawtrack.service.ClassificationService;
-import pawtrack.service.CsvImportResult;
-import pawtrack.service.CsvImportService;
 import pawtrack.service.ShelterSeeder;
 import pawtrack.service.StatusHistoryService;
 import pawtrack.service.WaitlistService;
@@ -56,13 +60,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 /**
  * Main application window (GUI). Connects to Main (entry point), Database, DAOs,
@@ -74,6 +74,7 @@ public final class MainFrame extends JFrame {
     // Private helper for MainFrame GUI logic
     private static final Dimension IMAGE_SIZE = new Dimension(240, 240);
     private static final Color PANEL_BLUE = new Color(0xAFD3F2);
+    private static final Color TABLE_BLUE = new Color(0xD6EAF8);
     private static final Color TOOLBAR_BLUE = new Color(0x9FC5E8);
     private static final Color TAB_COLOR = new Color(0x1F4366);
     private static final Color TAB_SELECTED_COLOR = new Color(0x2B5B8A);
@@ -94,6 +95,14 @@ public final class MainFrame extends JFrame {
     private final StatusHistoryService history = new StatusHistoryService();
     // Private helper for MainFrame GUI logic
     private final AnalyticsService analytics = new AnalyticsService();
+
+    // Controllers hold the logic; the view only calls one method per click.
+    private final AnimalController animalController;
+    private final AdoptionController adoptionController;
+    private final WaitlistController waitlistController;
+    private final AnalyticsController analyticsController;
+    private final ClassificationController classificationController;
+    private final ImportController importController;
 
     // Private helper for MainFrame GUI logic
     private final AnimalTableModel tableModel = new AnimalTableModel(waitlist);
@@ -139,7 +148,15 @@ public final class MainFrame extends JFrame {
 
         this.classification = ClassificationService.loadOrSeed(classificationDao);
         ShelterSeeder.seedIfEmpty(database, classification);
-        loadWaitlists();
+
+        AuthController authController = new AuthController(new UserDao(database));
+        this.animalController = new AnimalController(animalDao);
+        this.adoptionController = new AdoptionController(animalDao, adopterDao, recordDao, history, authController);
+        this.waitlistController = new WaitlistController(waitlist, waitlistDao, adopterDao, animalDao, history);
+        this.analyticsController = new AnalyticsController(animalDao, recordDao, analytics, waitlist, classification);
+        this.classificationController = new ClassificationController(classification, animalDao);
+        this.importController = new ImportController(database, classification, authController);
+        this.waitlistController.loadFromDb();
 
         buildUi();
         populateClassificationFilter();
@@ -222,7 +239,11 @@ public final class MainFrame extends JFrame {
 
         logArea.setEditable(false);
         animalTable.setFillsViewportHeight(true);
-        animalTable.setBackground(PANEL_BLUE);
+        javax.swing.table.DefaultTableCellRenderer centerRenderer = new javax.swing.table.DefaultTableCellRenderer();
+        centerRenderer.setHorizontalAlignment(javax.swing.SwingConstants.CENTER);
+        animalTable.setDefaultRenderer(Object.class, centerRenderer);
+        animalTable.setDefaultRenderer(java.lang.Number.class, centerRenderer);
+        animalTable.setBackground(TABLE_BLUE);
         animalTable.setGridColor(new Color(0x8FB8DA));
         animalTable.getTableHeader().setOpaque(true);
         animalTable.getTableHeader().setBackground(new Color(0x2B5B8A));
@@ -544,7 +565,7 @@ public final class MainFrame extends JFrame {
                 BorderFactory.createEmptyBorder(6, 20, 6, 6)));
         JScrollPane scroll = new JScrollPane(animalTable);
         scroll.setBorder(BorderFactory.createLineBorder(PANEL_BLUE));
-        scroll.getViewport().setBackground(PANEL_BLUE);
+        scroll.getViewport().setBackground(TABLE_BLUE);
         styleScrollBar(scroll.getVerticalScrollBar());
         styleScrollBar(scroll.getHorizontalScrollBar());
         panel.add(scroll, BorderLayout.CENTER);
@@ -626,34 +647,10 @@ public final class MainFrame extends JFrame {
     // Private helper for MainFrame GUI logic
     private void onFilterByClassification() {
         Object selected = classificationFilter.getSelectedItem();
-        if (selected == null || ALL_CLASSIFICATIONS.equals(selected)) {
-            refreshAnimals();
-            statusLabel.setText("Showing all animals");
-            return;
-        }
-        Optional<ClassificationNode> node = classification.findByPath(selected.toString());
-        if (node.isEmpty()) {
-            warn("Classification not found: " + selected);
-            return;
-        }
-        Set<Integer> ids = new HashSet<>();
-        for (ClassificationNode descendant : node.get().flatten()) {
-            ids.add(descendant.getId());
-        }
-        try {
-            List<Animal> matches = new ArrayList<>();
-            for (Animal animal : animalDao.findAll()) {
-                if (animal.getClassificationId() != null && ids.contains(animal.getClassificationId())) {
-                    matches.add(animal);
-                }
-            }
-            tableModel.setAnimals(matches);
-            statusLabel.setText(String.format("Recursive search under '%s': %d animal(s) across %d classification node(s)",
-                    node.get().getName(), matches.size(), ids.size()));
-            log("Recursive filter: " + node.get().path());
-        } catch (SQLException failure) {
-            error("Filter failed", failure);
-        }
+        String path = selected == null ? ALL_CLASSIFICATIONS : selected.toString();
+        List<Animal> matches = classificationController.filterByPath(path);
+        tableModel.setAnimals(matches);
+        statusLabel.setText("Filtered: " + path + " (" + matches.size() + " animal(s))");
     }
 
     // Private helper for MainFrame GUI logic
@@ -673,28 +670,22 @@ public final class MainFrame extends JFrame {
         progressBar.setString("Importing...");
         statusLabel.setText("Importing " + path.getFileName() + " on a background thread...");
 
-        final ImportWorker worker = new ImportWorker(new CsvImportService(database, classification), path);
-        worker.addPropertyChangeListener(event -> {
-            if ("progress".equals(event.getPropertyName())) {
-                int value = (int) event.getNewValue();
-                progressBar.setValue(value);
-                progressBar.setString(value + "%");
-            } else if ("state".equals(event.getPropertyName())
-                    && event.getNewValue() == SwingWorker.StateValue.DONE) {
-                try {
-                    CsvImportResult result = worker.get();
+        importController.importCsv(path,
+                value -> {
+                    progressBar.setValue(value);
+                    progressBar.setString(value + "%");
+                },
+                result -> {
                     progressBar.setString("Done");
                     statusLabel.setText(result.summary());
                     log("Import finished: " + result.summary());
                     refreshAnimals();
                     refreshAnalytics();
-                } catch (Exception failure) {
+                },
+                failure -> {
                     progressBar.setString("Failed");
                     error("Import failed", failure);
-                }
-            }
-        });
-        worker.execute();
+                });
     }
 
     // Private helper for MainFrame GUI logic
@@ -713,20 +704,12 @@ public final class MainFrame extends JFrame {
             return;
         }
         try {
-            Adopter persisted = adopterDao.findOrCreate(adopter);
-            int position = waitlist.addInterest(animal.getId(), persisted);
-            waitlistDao.insert(animal.getId(), persisted.getId(), LocalDateTime.now(), position);
-            if (animal.getStatus() != AnimalStatus.PENDING) {
-                AnimalStatus previous = animal.getStatus();
-                animal.setStatus(AnimalStatus.PENDING);
-                animalDao.updateStatus(animal.getId(), AnimalStatus.PENDING);
-                history.record(animal.getId(), previous, AnimalStatus.PENDING);
-            }
+            int position = waitlistController.recordInterest(animal, adopter);
             refreshAnimals();
             refreshAnalytics();
             refreshWaitlist();
             log(String.format("Interest recorded: %s is #%d in the waitlist for %s",
-                    persisted.getName(), position, animal.getName()));
+                    adopter.getName(), position, animal.getName()));
             statusLabel.setText("Interest recorded for " + animal.getName());
         } catch (SQLException | IllegalArgumentException failure) {
             error("Could not record interest", failure);
@@ -890,7 +873,7 @@ public final class MainFrame extends JFrame {
             return;
         }
         try {
-            animalDao.insert(draft);
+            animalController.addAnimal(draft);
             refreshAnimals();
             refreshAnalytics();
             log("Added animal: " + draft.getName());
@@ -912,9 +895,7 @@ public final class MainFrame extends JFrame {
             return;
         }
         try {
-            animalDao.updateDetails(animal.getId(), draft.getName(), draft.getBreed(),
-                    draft.getAgeMonths(), draft.getIntakeDate());
-            animalDao.updateStatus(animal.getId(), draft.getStatus());
+            animalController.updateAnimal(draft);
             refreshAnimals();
             refreshAnalytics();
             log("Edited animal: " + draft.getName());
@@ -937,7 +918,7 @@ public final class MainFrame extends JFrame {
             return;
         }
         try {
-            animalDao.deleteById(animal.getId());
+            animalController.deleteAnimal(animal.getId());
             refreshAnimals();
             refreshAnalytics();
             log("Deleted animal: " + animal.getName());
@@ -1042,20 +1023,13 @@ public final class MainFrame extends JFrame {
         }
         waitlistModel.setRowCount(0);
         try {
-            for (WaitlistDao.Entry entry : waitlistDao.loadAll()) {
-                Animal animal = animalDao.findById(entry.animalId()).orElse(null);
-                Adopter adopter = adopterDao.findById(entry.adopterId()).orElse(null);
-                String animalLabel = animal != null
-                        ? animal.getName() + " (" + animal.species().label() + ")"
-                        : "#" + entry.animalId();
-                String adopterName = adopter != null ? adopter.getName() : "#" + entry.adopterId();
-                String email = adopter != null ? adopter.getEmail() : "";
+            for (WaitlistController.WaitlistRequest req : waitlistController.getRequests()) {
                 waitlistModel.addRow(new Object[]{
-                        animalLabel,
-                        adopterName,
-                        email,
-                        entry.requestedAt().toLocalDate(),
-                        entry.position()
+                        req.animal().getName() + " (" + req.animal().species().label() + ")",
+                        req.adopter().getName(),
+                        req.adopter().getEmail(),
+                        req.requestedAt().toLocalDate(),
+                        req.position()
                 });
             }
             statusLabel.setText("Waitlist: " + waitlistModel.getRowCount() + " request(s)");
@@ -1093,21 +1067,18 @@ public final class MainFrame extends JFrame {
             }
             StringBuilder sb = new StringBuilder();
             sb.append("My Waitlist\n");
-            List<WaitlistDao.Entry> waiting = waitlistDao.findByAdopterId(me.getId());
+            List<WaitlistController.WaitlistRequest> waiting = waitlistController.findByAdopterId(me.getId());
             if (waiting.isEmpty()) {
                 sb.append("  (none)\n");
             } else {
-                for (WaitlistDao.Entry entry : waiting) {
-                    Animal animal = animalDao.findById(entry.animalId()).orElse(null);
-                    String label = animal != null
-                            ? animal.getName() + " (" + animal.species().label() + ")"
-                            : "Animal #" + entry.animalId();
+                for (WaitlistController.WaitlistRequest req : waiting) {
                     sb.append(String.format("  - %s  #%d  (requested %s)%n",
-                            label, entry.position(), entry.requestedAt().toLocalDate()));
+                            req.animal().getName() + " (" + req.animal().species().label() + ")",
+                            req.position(), req.requestedAt().toLocalDate()));
                 }
             }
             sb.append("\nMy Adoptions\n");
-            List<AdoptionRecord> adopted = recordDao.findByAdopterId(me.getId());
+            List<AdoptionRecord> adopted = adoptionController.findAdoptionsByAdopterId(me.getId());
             if (adopted.isEmpty()) {
                 sb.append("  (none)\n");
             } else {
@@ -1151,17 +1122,9 @@ public final class MainFrame extends JFrame {
             return;
         }
         try {
-            Adopter persisted = adopterDao.findOrCreate(adopter);
-            AdoptionRecord record = new AdoptionRecord(animal.getId(), persisted.getId(), LocalDate.now(),
-                    animal.adoptionFee());
-            recordDao.insert(record);
-            AnimalStatus previous = animal.getStatus();
-            animal.setStatus(AnimalStatus.ADOPTED);
-            animalDao.updateStatus(animal.getId(), AnimalStatus.ADOPTED);
-            history.record(animal.getId(), previous, AnimalStatus.ADOPTED);
-
-            Optional<Adopter> nextInLine = waitlist.pollNext(animal.getId());
-            waitlistDao.deleteByAnimal(animal.getId());
+            AdoptionRecord record = adoptionController.markAdopted(animal, adopter);
+            Adopter persisted = adopterDao.findById(record.getAdopterId()).orElse(adopter);
+            Optional<Adopter> nextInLine = waitlistController.pollNext(animal.getId());
 
             refreshAnimals();
             refreshAnalytics();
@@ -1179,14 +1142,13 @@ public final class MainFrame extends JFrame {
 
     // Private helper for MainFrame GUI logic
     private void onUndo() {
-        Optional<StatusChange> undone = history.undo();
-        if (undone.isEmpty()) {
-            info("There is no status change to undo.");
-            return;
-        }
-        StatusChange change = undone.get();
         try {
-            animalDao.updateStatus(change.animalId(), change.from());
+            Optional<StatusChange> undone = adoptionController.undoLastStatus();
+            if (undone.isEmpty()) {
+                info("There is no status change to undo.");
+                return;
+            }
+            StatusChange change = undone.get();
             refreshAnimals();
             log("Undid status change -> " + change);
             statusLabel.setText("Reverted " + change);
@@ -1273,45 +1235,21 @@ public final class MainFrame extends JFrame {
 
     // Private helper for MainFrame GUI logic
     private void refreshAnimals() {
-        try {
-            tableModel.setAnimals(animalDao.findAll());
-        } catch (SQLException failure) {
-            error("Could not load animals", failure);
-        }
+        animalController.refresh();
+        tableModel.setAnimals(animalController.getAnimals());
     }
 
     // Private helper for MainFrame GUI logic
     private void refreshAnalytics() {
-        try {
-            List<Animal> animals = animalDao.findAll();
-            List<AdoptionRecord> records = recordDao.findAll();
-            AnalyticsReport report = analytics.analyze(animals, records);
-            Map<Integer, List<Animal>> grouped = AnalyticsService.groupByClassification(animals);
-            Map<String, Long> classCounts = analytics.adoptionCountByClassification(classification.root(), grouped);
-            analyticsPanel.showReport(report, classCounts, waitlist.totalWaiters());
-        } catch (SQLException failure) {
-            log("Analytics failed: " + failure.getMessage());
-        }
+        AnalyticsController.AnalyticsSnapshot snapshot = analyticsController.compute();
+        analyticsPanel.showReport(snapshot.report(), snapshot.classCounts(), snapshot.totalWaiters());
     }
 
     // Private helper for MainFrame GUI logic
     private void populateClassificationFilter() {
         classificationFilter.addItem(ALL_CLASSIFICATIONS);
-        for (String path : classification.allPaths()) {
+        for (String path : classificationController.allPaths()) {
             classificationFilter.addItem(path);
-        }
-    }
-
-    // Private helper for MainFrame GUI logic
-    private void loadWaitlists() {
-        try {
-            for (WaitlistDao.Entry entry : waitlistDao.loadAll()) {
-                adopterDao.findById(entry.adopterId())
-                        .ifPresent(adopter -> waitlist.addInterest(entry.animalId(), adopter));
-            }
-            log("Restored " + waitlist.totalWaiters() + " waitlist entr(ies) from the database");
-        } catch (SQLException failure) {
-            log("Could not restore waitlists: " + failure.getMessage());
         }
     }
 
