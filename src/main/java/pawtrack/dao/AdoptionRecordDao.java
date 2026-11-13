@@ -68,6 +68,21 @@ public final class AdoptionRecordDao {
         return records;
     }
 
+    /** Adoption records that belong to a specific adopter. */
+    public List<AdoptionRecord> findByAdopterId(int adopterId) throws SQLException {
+        String sql = "SELECT * FROM adoption_record WHERE adopter_id = ? ORDER BY adoption_date";
+        List<AdoptionRecord> records = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setInt(1, adopterId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    records.add(map(rs));
+                }
+            }
+        }
+        return records;
+    }
+
     public Optional<LocalDate> latestAdoptionDate(int animalId) throws SQLException {
         String sql = "SELECT adoption_date FROM adoption_record WHERE animal_id = ? "
                 + "ORDER BY adoption_date DESC LIMIT 1";

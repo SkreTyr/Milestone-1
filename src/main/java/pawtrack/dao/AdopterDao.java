@@ -50,6 +50,18 @@ public final class AdopterDao {
         }
     }
 
+    /** Looks up an adopter by name or email (used to link a login to their records). */
+    public Optional<Adopter> findByNameOrEmail(String value) throws SQLException {
+        String sql = "SELECT * FROM adopter WHERE lower(name) = lower(?) OR lower(email) = lower(?) LIMIT 1";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, value);
+            ps.setString(2, value);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(map(rs)) : Optional.empty();
+            }
+        }
+    }
+
     public Optional<Adopter> findById(int id) throws SQLException {
         try (PreparedStatement ps = connection.prepareStatement("SELECT * FROM adopter WHERE id = ?")) {
             ps.setInt(1, id);

@@ -69,4 +69,24 @@ public final class WaitlistDao {
         }
         return entries;
     }
+
+    /** Waitlist entries that belong to a specific adopter. */
+    public List<Entry> findByAdopterId(int adopterId) throws SQLException {
+        String sql = "SELECT * FROM waitlist_entry WHERE adopter_id = ? ORDER BY requested_at";
+        List<Entry> entries = new ArrayList<>();
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setInt(1, adopterId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    entries.add(new Entry(
+                            rs.getInt("id"),
+                            rs.getInt("animal_id"),
+                            rs.getInt("adopter_id"),
+                            LocalDateTime.parse(rs.getString("requested_at")),
+                            rs.getInt("position")));
+                }
+            }
+        }
+        return entries;
+    }
 }

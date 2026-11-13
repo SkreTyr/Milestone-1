@@ -64,6 +64,20 @@ public final class AnimalDao {
         }
     }
 
+    /** Updates the editable animal details (everything except status/classification). */
+    public boolean updateDetails(int animalId, String name, String breed, int ageMonths, LocalDate intakeDate)
+            throws SQLException {
+        String sql = "UPDATE animal SET name = ?, breed = ?, age_months = ?, intake_date = ? WHERE id = ?";
+        try (PreparedStatement ps = connection.prepareStatement(sql)) {
+            ps.setString(1, name);
+            ps.setString(2, breed);
+            ps.setInt(3, ageMonths);
+            ps.setString(4, intakeDate.toString());
+            ps.setInt(5, animalId);
+            return ps.executeUpdate() == 1;
+        }
+    }
+
     public boolean updateClassification(int animalId, Integer classificationId) throws SQLException {
         String sql = "UPDATE animal SET classification_id = ? WHERE id = ?";
         try (PreparedStatement ps = connection.prepareStatement(sql)) {

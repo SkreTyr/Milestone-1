@@ -11,6 +11,7 @@ import pawtrack.model.Adopter;
 import pawtrack.model.AdoptionRecord;
 import pawtrack.model.Animal;
 import pawtrack.model.AnimalStatus;
+import pawtrack.model.Species;
 import pawtrack.model.ClassificationNode;
 import pawtrack.model.StatusChange;
 import pawtrack.service.AnalyticsReport;
@@ -71,7 +72,7 @@ public final class MainFrame extends JFrame {
 
     private static final String ALL_CLASSIFICATIONS = "<All animals>";
     // Private helper for MainFrame GUI logic
-    private static final Dimension IMAGE_SIZE = new Dimension(360, 360);
+    private static final Dimension IMAGE_SIZE = new Dimension(240, 240);
     private static final Color PANEL_BLUE = new Color(0xAFD3F2);
     private static final Color TOOLBAR_BLUE = new Color(0x9FC5E8);
     private static final Color TAB_COLOR = new Color(0x1F4366);
@@ -100,6 +101,7 @@ public final class MainFrame extends JFrame {
     private final JTable animalTable = new JTable(tableModel);
     // Private helper for MainFrame GUI logic
     private final JTextArea logArea = new JTextArea();
+    private JTextArea myRecordsArea;
     private CardLayout cardLayout;
     private JPanel contentPanel;
     private final java.util.List<RoundedUi.RoundedButton> tabButtons = new java.util.ArrayList<>();
@@ -165,7 +167,17 @@ public final class MainFrame extends JFrame {
         }
         getContentPane().setBackground(PANEL_BLUE);
 
-        add(buildToolbar(), BorderLayout.WEST);
+        // Keep a small gap between the panel content and its scrollbar.
+        JPanel toolbarHolder = new JPanel(new BorderLayout());
+        toolbarHolder.setOpaque(false);
+        toolbarHolder.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 12));
+        toolbarHolder.add(buildToolbar(), BorderLayout.CENTER);
+        JScrollPane toolbarScroll = new JScrollPane(toolbarHolder,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        toolbarScroll.setBorder(null);
+        toolbarScroll.getViewport().setBackground(TOOLBAR_BLUE);
+        styleScrollBar(toolbarScroll.getVerticalScrollBar());
+        add(toolbarScroll, BorderLayout.WEST);
 
         cardLayout = new CardLayout();
         contentPanel = new JPanel(cardLayout);
@@ -183,6 +195,10 @@ public final class MainFrame extends JFrame {
             activityScroll.getViewport().setBackground(PANEL_BLUE);
             styleScrollBar(activityScroll.getVerticalScrollBar());
             addTabButton("Activity Log", activityScroll);
+        }
+        if (user.getRole() == Role.ADOPTER) {
+            addTabButton("My Records", buildMyRecordsTab());
+            refreshMyRecords();
         }
         add(contentPanel, BorderLayout.CENTER);
         add(buildTabBar(), BorderLayout.NORTH);
@@ -315,6 +331,12 @@ public final class MainFrame extends JFrame {
         if (user.getRole() == Role.STAFF) {
             toolbar.add(button("Import Intake History (CSV)", this::onImportCsv));
             toolbar.add(Box.createVerticalStrut(16));
+            toolbar.add(button("Add Animal", this::onAddAnimal));
+            toolbar.add(Box.createVerticalStrut(16));
+            toolbar.add(button("Edit Animal", this::onEditAnimal));
+            toolbar.add(Box.createVerticalStrut(16));
+            toolbar.add(button("Delete Animal", this::onDeleteAnimal));
+            toolbar.add(Box.createVerticalStrut(16));
         }
         toolbar.add(button("Record Interest", this::onRecordInterest));
         toolbar.add(Box.createVerticalStrut(16));
@@ -427,6 +449,9 @@ public final class MainFrame extends JFrame {
         }
         toolbar.revalidate();
         toolbar.repaint();
+        // Re-layout the frame so the scroll pane / west region reflects the new width.
+        getContentPane().revalidate();
+        getContentPane().repaint();
     }
 
     private String shorten(String text) {
@@ -453,6 +478,15 @@ public final class MainFrame extends JFrame {
         }
         if (text.startsWith("Fetch")) {
             return "Fetch...";
+        }
+        if (text.startsWith("Add")) {
+            return "Add...";
+        }
+        if (text.startsWith("Edit")) {
+            return "Edit...";
+        }
+        if (text.startsWith("Delete")) {
+            return "Delete...";
         }
         if (text.contains("All")) {
             return "<all...";
@@ -482,6 +516,15 @@ public final class MainFrame extends JFrame {
         if (text.equals("Fetch...")) {
             return "Fetch Sample Pet Image";
         }
+        if (text.equals("Add...")) {
+            return "Add Animal";
+        }
+        if (text.equals("Edit...")) {
+            return "Edit Animal";
+        }
+        if (text.equals("Delete...")) {
+            return "Delete Animal";
+        }
         if (text.equals("<all...")) {
             return "<All animals>";
         }
@@ -494,7 +537,7 @@ public final class MainFrame extends JFrame {
         panel.setBackground(PANEL_BLUE);
         panel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(0, 1, 0, 0, new Color(0x8FB8DA)),
-                BorderFactory.createEmptyBorder(6, 6, 6, 6)));
+                BorderFactory.createEmptyBorder(6, 20, 6, 6)));
         JScrollPane scroll = new JScrollPane(animalTable);
         scroll.setBorder(BorderFactory.createLineBorder(PANEL_BLUE));
         scroll.getViewport().setBackground(PANEL_BLUE);
@@ -525,14 +568,18 @@ public final class MainFrame extends JFrame {
         imagePanel.setLayout(new BoxLayout(imagePanel, BoxLayout.Y_AXIS));
         imagePanel.setBackground(PANEL_BLUE);
         imagePanel.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        JLabel imageTitle = new JLabel("Sample Pet Image (live API)");
+        imageTitle.setAlignmentX(CENTER_ALIGNMENT);
+        imagePanel.add(imageTitle);
+        imagePanel.add(Box.createVerticalStrut(4));
         imageLabel.setPreferredSize(IMAGE_SIZE);
-        imageLabel.setMinimumSize(new Dimension(200, 200));
-        imageLabel.setMaximumSize(new Dimension(400, 400));
+        imageLabel.setMinimumSize(new Dimension(160, 160));
+        imageLabel.setMaximumSize(new Dimension(IMAGE_SIZE.width, IMAGE_SIZE.height));
         imageLabel.setHorizontalAlignment(JLabel.CENTER);
         imageLabel.setAlignmentX(CENTER_ALIGNMENT);
         imageLabel.setBorder(new RoundedUi.RoundedBorder(20, new java.awt.Color(0x8FB8DA), 1));
         imageInfoLabel.setAlignmentX(CENTER_ALIGNMENT);
-        imagePanel.add(Box.createVerticalStrut(6));
+        imagePanel.add(Box.createVerticalStrut(4));
         imagePanel.add(imageLabel);
         imagePanel.add(Box.createVerticalStrut(6));
         imagePanel.add(imageInfoLabel);
@@ -829,6 +876,185 @@ public final class MainFrame extends JFrame {
             sorter.setRowFilter(javax.swing.RowFilter.regexFilter(java.util.regex.Pattern.quote(label), 6));
             statusLabel.setText("Filtered by status: " + label);
         }
+    }
+
+    // Private helper for MainFrame GUI logic
+    private void onAddAnimal() {
+        Animal draft = showAnimalForm(null, "Add Animal");
+        if (draft == null) {
+            return;
+        }
+        try {
+            animalDao.insert(draft);
+            refreshAnimals();
+            refreshAnalytics();
+            log("Added animal: " + draft.getName());
+            statusLabel.setText("Added " + draft.getName());
+        } catch (SQLException | IllegalArgumentException failure) {
+            error("Could not add animal", failure);
+        }
+    }
+
+    // Private helper for MainFrame GUI logic
+    private void onEditAnimal() {
+        Animal animal = selectedAnimal();
+        if (animal == null) {
+            info("Select an animal in the table first.");
+            return;
+        }
+        Animal draft = showAnimalForm(animal, "Edit Animal");
+        if (draft == null) {
+            return;
+        }
+        try {
+            animalDao.updateDetails(animal.getId(), draft.getName(), draft.getBreed(),
+                    draft.getAgeMonths(), draft.getIntakeDate());
+            animalDao.updateStatus(animal.getId(), draft.getStatus());
+            refreshAnimals();
+            refreshAnalytics();
+            log("Edited animal: " + draft.getName());
+            statusLabel.setText("Updated " + draft.getName());
+        } catch (SQLException | IllegalArgumentException failure) {
+            error("Could not edit animal", failure);
+        }
+    }
+
+    // Private helper for MainFrame GUI logic
+    private void onDeleteAnimal() {
+        Animal animal = selectedAnimal();
+        if (animal == null) {
+            info("Select an animal in the table first.");
+            return;
+        }
+        int confirm = JOptionPane.showConfirmDialog(this, "Delete " + animal.getName() + "?",
+                "Delete Animal", JOptionPane.YES_NO_OPTION);
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+        try {
+            animalDao.deleteById(animal.getId());
+            refreshAnimals();
+            refreshAnalytics();
+            log("Deleted animal: " + animal.getName());
+            statusLabel.setText("Deleted " + animal.getName());
+        } catch (SQLException failure) {
+            error("Could not delete animal", failure);
+        }
+    }
+
+    // Private helper for MainFrame GUI logic
+    private Animal showAnimalForm(Animal existing, String title) {
+        JTextField name = new JTextField(existing != null ? existing.getName() : "", 16);
+        JComboBox<Species> species = new JComboBox<>(Species.values());
+        if (existing != null) {
+            species.setSelectedItem(existing.species());
+        }
+        JTextField breed = new JTextField(existing != null ? existing.getBreed() : "", 16);
+        JTextField age = new JTextField(existing != null ? String.valueOf(existing.getAgeMonths()) : "0", 6);
+        JTextField intake = new JTextField(
+                existing != null ? existing.getIntakeDate().toString() : LocalDate.now().toString(), 12);
+        JComboBox<AnimalStatus> status = new JComboBox<>(AnimalStatus.values());
+        status.setSelectedItem(existing != null ? existing.getStatus() : AnimalStatus.INTAKE);
+
+        JPanel form = new JPanel(new GridLayout(0, 2, 6, 6));
+        form.add(new JLabel("Name:"));
+        form.add(name);
+        form.add(new JLabel("Species:"));
+        form.add(species);
+        form.add(new JLabel("Breed:"));
+        form.add(breed);
+        form.add(new JLabel("Age (months):"));
+        form.add(age);
+        form.add(new JLabel("Intake date (yyyy-mm-dd):"));
+        form.add(intake);
+        form.add(new JLabel("Status:"));
+        form.add(status);
+
+        int result = JOptionPane.showConfirmDialog(this, form, title, JOptionPane.OK_CANCEL_OPTION);
+        if (result != JOptionPane.OK_OPTION) {
+            return null;
+        }
+        try {
+            int ageMonths = Integer.parseInt(age.getText().trim());
+            LocalDate intakeDate = LocalDate.parse(intake.getText().trim());
+            int id = existing != null ? existing.getId() : 0;
+            return Animal.create((Species) species.getSelectedItem(), id, name.getText().trim(),
+                    breed.getText().trim(), ageMonths, intakeDate, (AnimalStatus) status.getSelectedItem());
+        } catch (RuntimeException failure) {
+            error("Invalid animal details", failure);
+            return null;
+        }
+    }
+
+    // Private helper for MainFrame GUI logic
+    private JPanel buildMyRecordsTab() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(PANEL_BLUE);
+        panel.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
+        myRecordsArea = new JTextArea();
+        myRecordsArea.setEditable(false);
+        myRecordsArea.setBackground(PANEL_BLUE);
+        myRecordsArea.setForeground(Color.BLACK);
+        JScrollPane scroll = new JScrollPane(myRecordsArea);
+        scroll.getViewport().setBackground(PANEL_BLUE);
+        panel.add(scroll, BorderLayout.CENTER);
+        return panel;
+    }
+
+    // Private helper for MainFrame GUI logic
+    private void refreshMyRecords() {
+        if (myRecordsArea == null) {
+            return;
+        }
+        try {
+            Adopter me = resolveMyAdopter();
+            if (me == null) {
+                myRecordsArea.setText("No adopter profile is linked to this account.\n"
+                        + "Ask staff to link your account, or record interest using your name/email.");
+                return;
+            }
+            StringBuilder sb = new StringBuilder();
+            sb.append("My Waitlist\n");
+            List<WaitlistDao.Entry> waiting = waitlistDao.findByAdopterId(me.getId());
+            if (waiting.isEmpty()) {
+                sb.append("  (none)\n");
+            } else {
+                for (WaitlistDao.Entry entry : waiting) {
+                    Animal animal = animalDao.findById(entry.animalId()).orElse(null);
+                    String label = animal != null
+                            ? animal.getName() + " (" + animal.species().label() + ")"
+                            : "Animal #" + entry.animalId();
+                    sb.append(String.format("  - %s  #%d  (requested %s)%n",
+                            label, entry.position(), entry.requestedAt().toLocalDate()));
+                }
+            }
+            sb.append("\nMy Adoptions\n");
+            List<AdoptionRecord> adopted = recordDao.findByAdopterId(me.getId());
+            if (adopted.isEmpty()) {
+                sb.append("  (none)\n");
+            } else {
+                for (AdoptionRecord record : adopted) {
+                    Animal animal = animalDao.findById(record.getAnimalId()).orElse(null);
+                    String label = animal != null
+                            ? animal.getName() + " (" + animal.species().label() + ")"
+                            : "Animal #" + record.getAnimalId();
+                    sb.append(String.format("  - %s  adopted %s ($%.2f)%n",
+                            label, record.getAdoptionDate(), record.getFeePaid()));
+                }
+            }
+            myRecordsArea.setText(sb.toString());
+            myRecordsArea.setCaretPosition(0);
+        } catch (SQLException failure) {
+            error("Could not load your records", failure);
+        }
+    }
+
+    // Private helper for MainFrame GUI logic
+    private Adopter resolveMyAdopter() throws SQLException {
+        if (user.getAdopterId() != null) {
+            return adopterDao.findById(user.getAdopterId()).orElse(null);
+        }
+        return adopterDao.findByNameOrEmail(user.getUsername()).orElse(null);
     }
 
     // Private helper for MainFrame GUI logic
