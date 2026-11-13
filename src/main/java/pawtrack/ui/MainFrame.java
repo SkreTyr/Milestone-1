@@ -102,6 +102,8 @@ public final class MainFrame extends JFrame {
     // Private helper for MainFrame GUI logic
     private final JTextArea logArea = new JTextArea();
     private JTextArea myRecordsArea;
+    private javax.swing.table.DefaultTableModel waitlistModel;
+    private JTable waitlistTable;
     private CardLayout cardLayout;
     private JPanel contentPanel;
     private final java.util.List<RoundedUi.RoundedButton> tabButtons = new java.util.ArrayList<>();
@@ -195,6 +197,8 @@ public final class MainFrame extends JFrame {
             activityScroll.getViewport().setBackground(PANEL_BLUE);
             styleScrollBar(activityScroll.getVerticalScrollBar());
             addTabButton("Activity Log", activityScroll);
+            addTabButton("Waitlist Requests", buildWaitlistTab());
+            refreshWaitlist();
         }
         if (user.getRole() == Role.ADOPTER) {
             addTabButton("My Records", buildMyRecordsTab());
@@ -720,6 +724,7 @@ public final class MainFrame extends JFrame {
             }
             refreshAnimals();
             refreshAnalytics();
+            refreshWaitlist();
             log(String.format("Interest recorded: %s is #%d in the waitlist for %s",
                     persisted.getName(), position, animal.getName()));
             statusLabel.setText("Interest recorded for " + animal.getName());
@@ -983,6 +988,79 @@ public final class MainFrame extends JFrame {
         } catch (RuntimeException failure) {
             error("Invalid animal details", failure);
             return null;
+        }
+    }
+
+    // Private helper for MainFrame GUI logic
+    private JPanel buildWaitlistTab() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(PANEL_BLUE);
+        panel.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
+
+        waitlistModel = new javax.swing.table.DefaultTableModel(
+                new String[]{"Animal", "Adopter", "Email", "Requested", "Position"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        waitlistTable = new JTable(waitlistModel);
+        waitlistTable.setBackground(PANEL_BLUE);
+        waitlistTable.setGridColor(new Color(0x8FB8DA));
+        waitlistTable.setFillsViewportHeight(true);
+        waitlistTable.getTableHeader().setBackground(new Color(0x2B5B8A));
+        waitlistTable.getTableHeader().setForeground(Color.WHITE);
+        waitlistTable.getTableHeader().setDefaultRenderer(new javax.swing.table.DefaultTableCellRenderer() {
+            @Override
+            public java.awt.Component getTableCellRendererComponent(javax.swing.JTable table, Object value,
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                javax.swing.JLabel c = (javax.swing.JLabel) super.getTableCellRendererComponent(
+                        table, value, isSelected, hasFocus, row, column);
+                c.setOpaque(true);
+                c.setBackground(new Color(0x2B5B8A));
+                c.setForeground(Color.WHITE);
+                return c;
+            }
+        });
+
+        JPanel top = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT));
+        top.setOpaque(false);
+        top.add(button("Refresh Waitlist", this::refreshWaitlist));
+        panel.add(top, BorderLayout.NORTH);
+
+        JScrollPane scroll = new JScrollPane(waitlistTable);
+        scroll.getViewport().setBackground(PANEL_BLUE);
+        styleScrollBar(scroll.getVerticalScrollBar());
+        panel.add(scroll, BorderLayout.CENTER);
+        return panel;
+    }
+
+    // Private helper for MainFrame GUI logic
+    private void refreshWaitlist() {
+        if (waitlistModel == null) {
+            return;
+        }
+        waitlistModel.setRowCount(0);
+        try {
+            for (WaitlistDao.Entry entry : waitlistDao.loadAll()) {
+                Animal animal = animalDao.findById(entry.animalId()).orElse(null);
+                Adopter adopter = adopterDao.findById(entry.adopterId()).orElse(null);
+                String animalLabel = animal != null
+                        ? animal.getName() + " (" + animal.species().label() + ")"
+                        : "#" + entry.animalId();
+                String adopterName = adopter != null ? adopter.getName() : "#" + entry.adopterId();
+                String email = adopter != null ? adopter.getEmail() : "";
+                waitlistModel.addRow(new Object[]{
+                        animalLabel,
+                        adopterName,
+                        email,
+                        entry.requestedAt().toLocalDate(),
+                        entry.position()
+                });
+            }
+            statusLabel.setText("Waitlist: " + waitlistModel.getRowCount() + " request(s)");
+        } catch (SQLException failure) {
+            error("Could not load the waitlist", failure);
         }
     }
 
