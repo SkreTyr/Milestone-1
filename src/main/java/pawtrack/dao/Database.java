@@ -129,6 +129,26 @@ public final class Database implements AutoCloseable {
             ps.executeUpdate();
         }
     }
+    
+    public void beginTransaction() throws SQLException {
+        connection.setAutoCommit(false);
+    }
+
+    public void commit() throws SQLException {
+        connection.commit();
+        connection.setAutoCommit(true);
+    }
+
+    public void rollback() {
+        try {
+            if (!connection.getAutoCommit()) {
+                connection.rollback();
+                connection.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            LOGGER.log(java.util.logging.Level.SEVERE, "Database rollback failed", e);
+        }
+    }
 
     @Override
     public void close() throws SQLException {

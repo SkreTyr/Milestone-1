@@ -13,6 +13,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Recursive search over an arbitrarily deep classification tree.
@@ -29,7 +30,7 @@ class ClassificationServiceTest {
     @Test
     @DisplayName("Seeded taxonomy has the expected size and nesting depth")
     void taxonomyShape() {
-        assertEquals(5, service.depth());   // All Animals > Dog > Sporting Group > Retriever > Golden Retriever
+        assertEquals(5, service.depth());   
         assertEquals(22, service.nodeCount());
         assertEquals(22, service.allPaths().size());
     }
@@ -104,5 +105,29 @@ class ClassificationServiceTest {
         assertEquals(4, rebuilt.nodeCount());
         assertEquals("Root > Dog > Retriever > Golden Retriever",
                 rebuilt.findByPath("Root > Dog > Retriever > Golden Retriever").orElseThrow().path());
+    }
+
+    @Test
+    @DisplayName("Rebuilding from rows with a missing parent throws IllegalStateException")
+    void missingParentThrowsException() {
+        List<ClassificationDao.Row> rows = List.of(
+                new ClassificationDao.Row(1, "Root", null),
+                new ClassificationDao.Row(2, "Orphan", 999)
+        );
+        assertThrows(IllegalStateException.class, () -> {
+            ClassificationService.fromRows(rows);
+        });
+    }
+
+    @Test
+    @DisplayName("Rebuilding from rows with a cycle throws IllegalStateException")
+    void cycleThrowsException() {
+        List<ClassificationDao.Row> rows = List.of(
+                new ClassificationDao.Row(1, "A", 2),
+                new ClassificationDao.Row(2, "B", 1)
+        );
+        assertThrows(IllegalStateException.class, () -> {
+            ClassificationService.fromRows(rows);
+        });
     }
 }

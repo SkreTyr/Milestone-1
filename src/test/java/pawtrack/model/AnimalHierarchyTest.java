@@ -91,6 +91,14 @@ class AnimalHierarchyTest {
     }
 
     @Test
+    @DisplayName("Animal with empty or blank name is rejected")
+    void emptyNameRejected() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            Animal.create(Species.DOG, 0, "", "Beagle", 12, INTAKE, AnimalStatus.INTAKE);
+        });
+    }
+
+    @Test
     @DisplayName("Species labels parse leniently")
     void speciesParsing() {
         assertEquals(Species.DOG, Species.fromLabel("dog"));
