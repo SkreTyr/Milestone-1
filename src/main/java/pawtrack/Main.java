@@ -1,19 +1,8 @@
 package pawtrack;
 
-import pawtrack.controller.AdoptionController;
-import pawtrack.controller.AnimalController;
 import pawtrack.controller.AuthController;
-import pawtrack.dao.AdopterDao;
-import pawtrack.dao.AdoptionRecordDao;
-import pawtrack.dao.AnimalDao;
-import pawtrack.dao.ClassificationDao;
 import pawtrack.dao.Database;
 import pawtrack.dao.UserDao;
-import pawtrack.dao.WaitlistDao;
-import pawtrack.service.AnalyticsService;
-import pawtrack.service.ClassificationService;
-import pawtrack.service.StatusHistoryService;
-import pawtrack.service.WaitlistService;
 import pawtrack.ui.LoginPanel;
 import pawtrack.ui.MainFrame;
 
@@ -22,9 +11,6 @@ import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import java.awt.Dimension;
-import java.sql.SQLException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Application entry point. Shows the login panel first, then launches the
@@ -32,10 +18,9 @@ import java.util.logging.Logger;
  */
 public final class Main {
 
-    private static final Logger LOGGER = Logger.getLogger(Main.class.getName());
-
     private Main() {
     }
+    
 
     public static void main(String[] args) {
         try {
@@ -47,64 +32,61 @@ public final class Main {
         UIManager.put("ScrollBar.track", new java.awt.Color(0xAFD3F2));
         UIManager.put("ScrollBar.thumb", new java.awt.Color(0x8FB8DA));
         UIManager.put("ScrollBar.thumbDarkShadow", new java.awt.Color(0x8FB8DA));
-        SwingUtilities.invokeLater(Main::showLogin);
+        SwingUtilities.invokeLater(() -> showLogin(true));
     }
+    
+    
 
-    private static void showLogin() {
+    private static void showLogin(boolean playIntro) {
         try {
             String dbPath = System.getProperty("petshelter.db", "petshelter.db");
             Database database = Database.openFile(dbPath);
             UserDao userDao = new UserDao(database);
             AuthController authController = new AuthController(userDao);
 
-            AnimalDao animalDao = new AnimalDao(database);
-            AdopterDao adopterDao = new AdopterDao(database);
-            AdoptionRecordDao recordDao = new AdoptionRecordDao(database);
-            WaitlistDao waitlistDao = new WaitlistDao(database);
-            ClassificationDao classificationDao = new ClassificationDao(database);
-
-            ClassificationService classification = ClassificationService.loadOrSeed(classificationDao);
-            WaitlistService waitlist = new WaitlistService();
-            StatusHistoryService history = new StatusHistoryService();
-            AnalyticsService analytics = new AnalyticsService();
-
-            AnimalController animalController = new AnimalController(animalDao);
-            AdoptionController adoptionController = new AdoptionController(database, animalDao, adopterDao, recordDao, waitlistDao, history, waitlist, authController);
-
             JFrame loginFrame = new JFrame("Pet Shelter - Login");
             loginFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            loginFrame.setSize(460, 520);
-            loginFrame.setMinimumSize(new Dimension(420, 500));
+            loginFrame.setSize(1080, 690);
+            loginFrame.setMinimumSize(new Dimension(800, 560));
             java.awt.Image icon = pawtrack.ui.Icons.appIcon();
             if (icon != null) {
                 loginFrame.setIconImage(icon);
             }
             loginFrame.setLocationRelativeTo(null);
 
+            final pawtrack.ui.PawTrackStartupPanel[] startup = new pawtrack.ui.PawTrackStartupPanel[1];
             LoginPanel loginPanel = new LoginPanel(authController, user -> {
+                if (startup[0] != null) startup[0].stop();
                 loginFrame.dispose();
                 try {
-                	MainFrame frame = new MainFrame(user, database, authController, animalController, adoptionController);
+                    MainFrame frame = new MainFrame(user, database, authController);
                     frame.setOnLogout(() -> {
+                        authController.logout();
                         frame.dispose();
-                        showLogin();
+                        try {
+                            database.close();
+                        } catch (java.sql.SQLException closeFailure) {
+                            java.util.logging.Logger.getLogger(Main.class.getName())
+                                    .log(java.util.logging.Level.WARNING, "Failed to close database on logout", closeFailure);
+                        }
+                        showLogin(false);
                     });
                     frame.setVisible(true);
                 } catch (Exception failure) {
-                    LOGGER.log(Level.SEVERE, "Failed to start application window", failure);
                     JOptionPane.showMessageDialog(null,
                             "Failed to start the application:\n" + failure.getMessage(),
                             "Startup error", JOptionPane.ERROR_MESSAGE);
                     System.exit(1);
                 }
-            });
+            }, true);
 
-            loginFrame.add(loginPanel);
+            startup[0] = new pawtrack.ui.PawTrackStartupPanel(loginPanel, playIntro);
+            loginFrame.setContentPane(startup[0]);
             loginFrame.setVisible(true);
-        } catch (SQLException failure) {
-            LOGGER.log(Level.SEVERE, "Database connection failed", failure);
+            startup[0].start();
+        } catch (Exception failure) {
             JOptionPane.showMessageDialog(null,
-                    "Failed to open database:\n" + failure.getMessage(),
+                    "Failed to start the application:\n" + failure.getMessage(),
                     "Startup error", JOptionPane.ERROR_MESSAGE);
             System.exit(1);
         }
